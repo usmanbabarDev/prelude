@@ -1,10 +1,21 @@
 # Prelude: find anyone by name
 
-**Live demo:** https://usmanbabardev.github.io/prelude/ (static build with fictional people; runs entirely in the browser)
+**Live (free mode):** https://usmanbabardev.github.io/prelude/ — searches real, well-known people with no API keys, straight from the browser.
 
 Type a name, pick the right person, and get one AI-built profile from public web data: social profiles, work history, education, city/region, and web mentions (articles, talks, podcasts, news), plus an AI summary where every fact links to its source. Ask follow-up questions in chat.
 
-## Deploy (real search)
+## Two modes
+
+| | Free mode | Live mode |
+|---|---|---|
+| Who it finds | Notable people with a Wikipedia article | Anyone with a public web presence |
+| Sources | Wikipedia, Wikidata (roles, education, awards, verified social accounts), Hacker News | Exa people index + web + news, summarised by Claude |
+| Needs | Nothing — runs in the browser, works on GitHub Pages | `ANTHROPIC_API_KEY` + `EXA_API_KEY` on a server (Render) |
+| Follow-up chat | Rule-based answers from the profile | Claude, with citations |
+
+The app checks `api/status` on load: if the server reports live mode it uses the server, otherwise it runs free mode in the browser. Free mode only reads professional properties from Wikidata (never spouse, children, relatives, date of birth or residence) and drops summary sentences about family or wealth.
+
+## Deploy (live mode)
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/usmanbabarDev/prelude)
 
@@ -14,7 +25,7 @@ Click the button, sign in to Render, and paste your `ANTHROPIC_API_KEY` and `EXA
 
 ```bash
 npm install
-npm start            # http://localhost:5173, DEMO mode with fictional people
+npm start            # http://localhost:5173, free mode unless API keys are set
 ```
 
 To search real people, set both keys and restart:
@@ -56,11 +67,11 @@ Free: 3 lookups a month. Monthly: $9.99 unlimited. Yearly: $49.99. No weekly pla
 ```
 server.js      Node http server: /api/candidates, /api/profile, /api/ask, /api/optout
 public/        index.html, app.css, app.js (vanilla, hash router), sw.js, manifest
-  demo-data.js Fictional personas (reserved .example domains), shared by the server and the static build
-.github/       GitHub Pages workflow that publishes public/ as the static demo
+  free-search.js  Free mode: Wikipedia + Wikidata + Hacker News lookups, in the browser
+.github/       GitHub Pages workflow that publishes public/ (free mode)
 ```
 
-Without a server (e.g. on GitHub Pages) the front end answers its own API calls from the demo data. Works on Node 17+. The `undici` package supplies `fetch` on Node versions older than 18.
+Without a live server (e.g. on GitHub Pages) the front end runs free mode itself. Works on Node 17+. The `undici` package supplies `fetch` on Node versions older than 18.
 
 ## Not built yet
 

@@ -3,6 +3,7 @@
   const $ = (s, el = document) => el.querySelector(s);
   const view = $("#view");
   const FREE_LOOKUPS = 3;
+  const FAMOUS = ["Satya Nadella", "Taylor Swift", "Lionel Messi", "Sam Altman", "Serena Williams", "Jensen Huang", "Oprah Winfrey", "Linus Torvalds"];
 
   // ---------- storage ----------
   const store = {
@@ -19,7 +20,7 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const initials = (n) => String(n).split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   const hue = (s) => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
-  const avatar = (name, lg, seed = name) => `<div class="avatar${lg ? " lg" : ""}" style="background:linear-gradient(135deg,hsl(${hue(seed)} 70% 58%),hsl(${(hue(seed) + 40) % 360} 65% 45%))">${esc(initials(name))}</div>`;
+  const avatar = (name, lg, seed = name, img) => img ? `<img class="avatar${lg ? " lg" : ""}" src="${esc(img)}" alt="" loading="lazy">` : `<div class="avatar${lg ? " lg" : ""}" style="background:linear-gradient(135deg,hsl(${hue(seed)} 70% 58%),hsl(${(hue(seed) + 40) % 360} 65% 45%))">${esc(initials(name))}</div>`;
   const safeUrl = (u) => (/^https?:\/\//i.test(u || "") ? u : "#");
   const cite = (id) => `<button class="cite" data-src="${+id}">${+id}</button>`;
   const cites = (list) => (list || []).map(cite).join("");
@@ -45,32 +46,37 @@
   const PLATFORM = {
     linkedin: ["LinkedIn", "#0a66c2", "in"], github: ["GitHub", "#24292f", "gh"], x: ["X", "#000000", "𝕏"], instagram: ["Instagram", "#d62976", "ig"],
     youtube: ["YouTube", "#ff0000", "▶"], medium: ["Medium", "#111111", "M"], substack: ["Substack", "#ff6719", "S"], threads: ["Threads", "#000000", "@"],
-    bluesky: ["Bluesky", "#1185fe", "b"], website: ["Website", "#4b3df5", "◎"], other: ["Profile", "#6b6b76", "↗"],
+    bluesky: ["Bluesky", "#1185fe", "b"], website: ["Website", "#4b3df5", "◎"], tiktok: ["TikTok", "#010101", "♪"], facebook: ["Facebook", "#1877f2", "f"], other: ["Profile", "#6b6b76", "↗"],
   };
-  const MENTION = { article: "Article", interview: "Interview", talk: "Talk", podcast: "Podcast", news: "News", publication: "Publication", project: "Project", event: "Event", other: "Mention" };
+  const MENTION = { article: "Article", interview: "Interview", talk: "Talk", podcast: "Podcast", news: "News", publication: "Publication", project: "Project", event: "Event", award: "Award", other: "Mention" };
 
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2200); }
 
-  // ---------- API (falls back to in-browser demo when there's no server, e.g. GitHub Pages) ----------
-  let staticMode = null;
-  const staticApi = {
-    "api/status": async () => ({ live: false, static: true }),
+  // ---------- API ----------
+  // Live mode (server has API keys): Exa + Claude on the server.
+  // Free mode (no keys, or no server at all e.g. GitHub Pages): Wikipedia + Wikidata + Hacker News, in the browser.
+  const CONTACT_LOOKUP = /@|\d{3}[\s.-]?\d{3,4}|\b\d+\s+\w+\s+(st|street|ave|road|rd|lane|blvd)\b/i;
+  const freeApi = {
     "api/candidates": async ({ name, hint }) => {
-      if (/@|\d{3}[\s.-]?\d{3,4}|\b\d+\s+\w+\s+(st|street|ave|road|rd|lane|blvd)\b/i.test(`${name} ${hint || ""}`)) throw new Error("Search by name. Reverse lookups on phone numbers, emails or addresses aren't supported.");
-      await sleep(600);
+      if (CONTACT_LOOKUP.test(`${name} ${hint || ""}`)) throw new Error("Search by name. Reverse lookups on phone numbers, emails or addresses aren't supported.");
       const removed = store.get("optouts", []);
-      return { candidates: PreludeDemo.candidates(name).filter((c) => !removed.includes(c.url)) };
+      return { candidates: (await FreeSearch.candidates(name, hint)).filter((c) => !removed.includes(c.url)) };
     },
-    "api/profile": async ({ candidate }) => { await sleep(2600); return PreludeDemo.profile(candidate); },
-    "api/ask": async ({ profile, question }) => { await sleep(900); return { answer: PreludeDemo.answer(profile, question) }; },
+    "api/profile": async ({ candidate }) => FreeSearch.profile(candidate),
+    "api/ask": async ({ profile, question }) => { await sleep(400); return { answer: FreeSearch.answer(profile, question) }; },
     "api/optout": async ({ url }) => { if (url) store.set("optouts", [...store.get("optouts", []), url]); return { ok: true }; },
   };
+  const ready = fetch("api/status")
+    .then((r) => ((r.headers.get("content-type") || "").includes("application/json") ? r.json() : { live: false }))
+    .catch(() => ({ live: false }))
+    .then((s) => {
+      state.live = !!s.live;
+      const pill = $("#modePill"); pill.textContent = state.live ? "Live" : "Free"; pill.classList.toggle("live", state.live);
+    });
   async function api(path, body) {
-    if (staticMode) return staticApi[path](body || {});
-    let res;
-    try { res = await fetch(path, body ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {}); } catch { res = null; }
-    const isJson = res && (res.headers.get("content-type") || "").includes("application/json");
-    if (!isJson && window.PreludeDemo) { staticMode = true; return staticApi[path](body || {}); }
+    await ready;
+    if (!state.live) return freeApi[path](body || {});
+    const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Something went wrong.");
     return data;
@@ -119,6 +125,11 @@
         <p class="muted small" style="margin:0;text-align:center">${pro ? "Unlimited lookups" : `${Math.max(0, FREE_LOOKUPS - u.used)} of ${FREE_LOOKUPS} free lookups left this month`} · searches are private</p>
       </form>
 
+      <div class="section">
+        <div class="section-head"><h2>Try a famous name</h2></div>
+        <div class="chips">${FAMOUS.map((n) => `<button type="button" class="chip" data-famous="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+      </div>
+
       ${recent.length ? `
       <div class="section">
         <div class="section-head"><h2>Recent</h2><a href="#/history">See all</a></div>
@@ -146,6 +157,7 @@
         </ol></div>
       </div>`;
     $("#searchForm").addEventListener("submit", (e) => { e.preventDefault(); runSearch($("#qName").value, $("#qHint").value); });
+    view.querySelectorAll("[data-famous]").forEach((c) => c.addEventListener("click", () => runSearch(c.dataset.famous, "")));
     bindHistoryRows(recent);
   }
   const feature = (ico, t, d) => `<div class="feature"><div class="ico">${ico}</div><h3>${t}</h3><p>${d}</p></div>`;
@@ -172,11 +184,11 @@
       <p class="eyebrow">${c.length} match${c.length === 1 ? "" : "es"}</p>
       <h2>Which ${esc(state.search.name)}?</h2>
       <p class="lede small">Pick the right person. We only combine sources that belong to the same person.</p>
-      ${c.some((x) => x.demo) ? `<div class="notice" style="margin-bottom:12px">${ICON.info}<span><b>Demo mode.</b> These are fictional sample people. Connect API keys to search the real web.</span></div>` : ""}
+      ${state.live ? "" : `<div class="notice" style="margin-bottom:12px">${ICON.info}<span><b>Free mode</b> searches Wikipedia and Wikidata, so it finds well-known people. Searching anyone on the web needs the live version with API keys.</span></div>`}
       ${sameName ? `<div class="notice warn" style="margin-bottom:12px">${ICON.info}<span>Several people share this name — check the role and location.</span></div>` : ""}
       ${c.length ? c.map((x, i) => `
         <button class="row" data-i="${i}">
-          ${avatar(x.name, false, x.url)}
+          ${avatar(x.name, false, x.url, x.image)}
           <div class="grow">
             <div class="title">${esc(x.name)}</div>
             <div class="sub">${esc(x.headline)}</div>
@@ -192,7 +204,7 @@
   // ---------- Profile generation ----------
   async function buildProfile(candidate) {
     const u = usage();
-    if (u.used >= FREE_LOOKUPS && !store.get("pro", false)) return showPlans(true);
+    if (state.live && u.used >= FREE_LOOKUPS && !store.get("pro", false)) return showPlans(true);
     const steps = ["Finding social profiles", "Reading work & education history", "Scanning articles, talks & news", "Checking it's all the same person", "Writing the AI summary"];
     view.innerHTML = `<div class="loading"><div class="pulse"></div><p class="eyebrow">Building profile</p><h2>${esc(candidate.name)}</h2><ul class="steps">${steps.map((s) => `<li><span class="dot"></span>${esc(s)}</li>`).join("")}</ul></div>`;
     $("#backBtn").hidden = true;
@@ -202,7 +214,7 @@
     try {
       const profile = await api("api/profile", { candidate });
       clearInterval(timer); lis.forEach((l) => (l.className = "done"));
-      store.set("usage", { ...u, used: u.used + 1 });
+      if (state.live) store.set("usage", { ...u, used: u.used + 1 });
       profile.key = candidate.url; profile.candidate = candidate;
       saveProfile(profile);
       await sleep(300);
@@ -221,9 +233,9 @@
     const conf = p.identity.match_confidence;
     const confColor = conf >= 85 ? "var(--good)" : conf >= 65 ? "var(--warn)" : "var(--bad)";
     view.innerHTML = `
-      ${p.demo ? `<div class="notice" style="margin-bottom:14px">${ICON.info}<span>Demo profile of a <b>fictional</b> person.</span></div>` : ""}
+      ${p.mode === "free" ? `<div class="notice" style="margin-bottom:14px">${ICON.info}<span>Free mode: built from Wikipedia, Wikidata and Hacker News.</span></div>` : ""}
       <div class="id-card">
-        ${avatar(p.identity.name, true, p.key)}
+        ${avatar(p.identity.name, true, p.key, p.image)}
         <div class="grow">
           <h2>${esc(p.identity.name)}</h2>
           <div class="muted small">${esc(p.identity.headline)}</div>
@@ -349,7 +361,7 @@
 
   // ---------- History ----------
   function historyRow(p, i) {
-    return `<button class="row" data-h="${i}">${avatar(p.identity.name, false, p.key)}<div class="grow"><div class="title">${esc(p.identity.name)}</div><div class="sub">${esc(p.identity.headline)}</div><div class="small muted">Searched ${new Date(p.generatedAt).toLocaleDateString()}</div></div>${ICON.chev}</button>`;
+    return `<button class="row" data-h="${i}">${avatar(p.identity.name, false, p.key, p.image)}<div class="grow"><div class="title">${esc(p.identity.name)}</div><div class="sub">${esc(p.identity.headline)}</div><div class="small muted">Searched ${new Date(p.generatedAt).toLocaleDateString()}</div></div>${ICON.chev}</button>`;
   }
   function bindHistoryRows(list) { view.querySelectorAll("[data-h]").forEach((r) => r.addEventListener("click", () => openProfile(list[r.dataset.h]))); }
   function renderHistory() {
@@ -398,10 +410,6 @@
   }
 
   // ---------- boot ----------
-  api("api/status").then((s) => {
-    state.live = s.live;
-    const pill = $("#modePill"); pill.textContent = s.live ? "Live" : "Demo"; pill.classList.toggle("live", s.live);
-  }).catch(() => ($("#modePill").textContent = "Offline"));
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
   route();
 })();

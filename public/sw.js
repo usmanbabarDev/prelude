@@ -1,6 +1,6 @@
 // Network-first for API, cache-first for the app shell so saved briefs open offline.
-const CACHE = "prelude-v3";
-const SHELL = ["./", "app.css", "app.js", "demo-data.js", "icon.svg", "manifest.webmanifest"];
+const CACHE = "prelude-v4";
+const SHELL = ["./", "app.css", "app.js", "free-search.js", "icon.svg", "manifest.webmanifest"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", (e) => {

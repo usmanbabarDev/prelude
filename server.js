@@ -1,6 +1,6 @@
 // Prelude — find anyone by name, get an AI profile built from public web data.
-// Zero-framework Node server. Runs in DEMO mode (fictional data) unless both
-// ANTHROPIC_API_KEY and EXA_API_KEY are set, in which case it runs LIVE.
+// Zero-framework Node server. With ANTHROPIC_API_KEY and EXA_API_KEY set it runs LIVE
+// (full web search). Without them the browser uses free mode (public/free-search.js).
 
 const http = require("http");
 const fs = require("fs");
@@ -13,7 +13,6 @@ if (typeof globalThis.fetch !== "function") {
 }
 
 const Anthropic = require("@anthropic-ai/sdk").default;
-const demo = require("./public/demo-data");
 
 const PORT = Number(process.env.PORT) || 5173;
 const LIVE = Boolean(process.env.ANTHROPIC_API_KEY && process.env.EXA_API_KEY);
@@ -194,17 +193,18 @@ const routes = {
   "POST /api/candidates": async ({ name, hint }) => {
     if (!name || name.trim().length < 3) return [400, { error: "Enter a full name." }];
     if (looksLikeContactLookup(`${name} ${hint || ""}`)) return [400, { error: "Search by name. Reverse lookups on phone numbers, emails or addresses aren't supported." }];
-    const list = LIVE ? await findCandidates(name.trim(), (hint || "").trim()) : demo.candidates(name, hint);
+    if (!LIVE) return [503, { error: "Live search needs API keys." }];
+    const list = await findCandidates(name.trim(), (hint || "").trim());
     return { candidates: list.filter((c) => !isOptedOut(c.name, c.url)) };
   },
   "POST /api/profile": async ({ candidate }) => {
     if (!candidate) return [400, { error: "Pick a person." }];
-    if (!LIVE) { await new Promise((r) => setTimeout(r, 2600)); return demo.profile(candidate); }
+    if (!LIVE) return [503, { error: "Live search needs API keys." }];
     return buildProfile(candidate);
   },
   "POST /api/ask": async ({ profile, question, history }) => {
     if (!profile || !question) return [400, { error: "Missing question." }];
-    if (!LIVE) { await new Promise((r) => setTimeout(r, 900)); return { answer: demo.answer(profile, question) }; }
+    if (!LIVE) return [503, { error: "Live search needs API keys." }];
     return { answer: await answer(profile, question, history || []) };
   },
   "POST /api/optout": async ({ name, url, reason }) => {
@@ -233,4 +233,4 @@ http.createServer(async (req, res) => {
   if (!file.startsWith(PUBLIC_DIR) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(PUBLIC_DIR, "index.html");
   res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream" });
   fs.createReadStream(file).pipe(res);
-}).listen(PORT, () => console.log(`Prelude running on http://localhost:${PORT} (${LIVE ? "LIVE" : "DEMO"} mode)`));
+}).listen(PORT, () => console.log(`Prelude running on http://localhost:${PORT} (${LIVE ? "LIVE" : "FREE"} mode)`));
