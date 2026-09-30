@@ -68,8 +68,31 @@ async function serper(kind, body) {
 
 // Free, keyless search through a SearXNG instance (SEARXNG_URL). Returns the same shape as Serper.
 // Unreliable by nature: the engines it queries may rate-limit or block it.
-async function searxng(kind, body) {
+// On Render's free plan SearXNG sleeps after 15 idle minutes and takes ~30-60s to wake.
+// wakeSearxng() polls it until it answers; the app calls it when a visitor opens the site
+// (via /api/status) and before a search if SearXNG hasn't been heard from recently.
+let searxLastOk = 0;
+let waking = null;
+function wakeSearxng() {
+  if (!HAS_SEARXNG || Date.now() - searxLastOk < 10 * 6e4) return Promise.resolve(true);
+  if (waking) return waking;
+  waking = (async () => {
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(`${SEARXNG_URL}/healthz`, { signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined });
+        if (res.ok) { searxLastOk = Date.now(); return true; }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    return false;
+  })().finally(() => { waking = null; });
+  return waking;
+}
+
+async function searxng(kind, body, retried = false) {
   if (!HAS_SEARXNG) return null;
+  await wakeSearxng();
   const params = new URLSearchParams({ q: body.q, format: "json", safesearch: "1", categories: kind === "images" ? "images" : kind === "news" ? "news" : "general" });
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 30000);
@@ -83,7 +106,11 @@ async function searxng(kind, body) {
       if (!res.ok) throw new Error(`SearXNG failed (${res.status})`);
       return (await res.json()).results || [];
     }).map((p) => p.catch(() => { failed++; return []; })))).flat();
-    if (failed === pages.length) throw new Error("The free search engine (SearXNG) didn't respond. It may be waking up or rate-limited — try again in a minute.");
+    if (failed === pages.length) {
+      if (!retried) { searxLastOk = 0; clearTimeout(timer); return searxng(kind, body, true); } // maybe it fell asleep: wake it and retry once
+      throw new Error("The free search engine (SearXNG) didn't respond. It may be waking up or rate-limited — try again in a minute.");
+    }
+    searxLastOk = Date.now();
     if (kind === "images") {
       return { images: results.filter((r) => r.img_src).map((r) => ({ title: r.title, imageUrl: r.img_src, thumbnailUrl: r.thumbnail_src || r.thumbnail || r.img_src, link: r.url, source: hostOf(r.url) })) };
     }
@@ -339,7 +366,7 @@ function looksLikeContactLookup(q) {
 }
 
 const routes = {
-  "GET /api/status": async () => ({ live: LIVE, ai: AI, model: AI ? MODEL : null, search: [HAS_SERPER && "serper", HAS_SEARXNG && "searxng", HAS_EXA && "exa"].filter(Boolean) }),
+  "GET /api/status": async () => (wakeSearxng(), { live: LIVE, ai: AI, model: AI ? MODEL : null, search: [HAS_SERPER && "serper", HAS_SEARXNG && "searxng", HAS_EXA && "exa"].filter(Boolean) }),
   "POST /api/candidates": async ({ name, hint }) => {
     if (!name || name.trim().length < 3) return [400, { error: "Enter a full name." }];
     if (looksLikeContactLookup(`${name} ${hint || ""}`)) return [400, { error: "Search by name. Reverse lookups on phone numbers, emails or addresses aren't supported." }];
