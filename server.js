@@ -127,6 +127,23 @@ function profileKey(url) { try { const u = new URL(url); return (u.hostname.repl
 // Every public profile we can find for a name, with photos where the source has one.
 // Serper = Google web + Google Images; Exa = people index. Either one is enough.
 const fold = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// Cache each name's results for 24h: repeat searches cost nothing and don't hit the engines again.
+const CACHE_TTL = 24 * 36e5;
+const cache = new Map();
+async function findCandidatesCached(name, hint) {
+  const key = fold(`${name}|${hint || ""}`).replace(/\s+/g, " ").trim();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL) return hit.data;
+  const data = await findCandidates(name, hint);
+  if (data.candidates.length || data.images.length) {
+    cache.set(key, { at: Date.now(), data });
+    if (cache.size > 2000) cache.delete(cache.keys().next().value); // drop the oldest
+  } else if (hit) {
+    return hit.data; // engines came back empty (likely throttled): serve the older copy
+  }
+  return data;
+}
+
 async function findCandidates(name, hint) {
   const q = [name, hint].filter(Boolean).join(" ");
   const quoted = `"${name}" ${hint || ""}`.trim();
@@ -327,7 +344,7 @@ const routes = {
     if (!name || name.trim().length < 3) return [400, { error: "Enter a full name." }];
     if (looksLikeContactLookup(`${name} ${hint || ""}`)) return [400, { error: "Search by name. Reverse lookups on phone numbers, emails or addresses aren't supported." }];
     if (!LIVE) return [503, { error: "Live search needs API keys." }];
-    return findCandidates(name.trim(), (hint || "").trim());
+    return findCandidatesCached(name.trim(), (hint || "").trim());
   },
   "POST /api/profile": async ({ candidate }) => {
     if (!candidate) return [400, { error: "Pick a person." }];

@@ -22,3 +22,24 @@ outgoing:
   # Don't wait on slow or blocked engines; return whatever arrived.
   request_timeout: 4.0
   max_request_timeout: 6.0
+
+# Spread queries over more engines so one engine blocking us doesn't empty the results.
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: yahoo
+    disabled: false
+  - name: startpage
+    disabled: false
+  - name: mojeek
+    disabled: false
+  - name: qwant
+    disabled: false
+  - name: google images
+    disabled: false
+  - name: bing images
+    disabled: false
+  - name: duckduckgo images
+    disabled: false
