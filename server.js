@@ -154,6 +154,22 @@ async function answer(profile, question, history) {
   });
 }
 
+// ---------- rate limit (per visitor, in memory) ----------
+// Keeps a public deployment from burning through API credits.
+const LIMITS = { "POST /api/candidates": 30, "POST /api/profile": 10, "POST /api/ask": 40 }; // per hour
+const hits = new Map();
+function rateLimited(req, key) {
+  const max = LIMITS[key];
+  if (!max || !LIVE) return false;
+  const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
+  const now = Date.now();
+  const recent = (hits.get(ip + key) || []).filter((t) => now - t < 36e5);
+  if (recent.length >= max) return true;
+  recent.push(now);
+  hits.set(ip + key, recent);
+  return false;
+}
+
 // ---------- HTTP ----------
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json", ".png": "image/png" };
 
@@ -204,6 +220,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   const handler = routes[`${req.method} ${url.pathname}`];
   if (handler) {
+    if (rateLimited(req, `${req.method} ${url.pathname}`)) return send(res, 429, { error: "Too many lookups from this device. Try again in an hour." });
     try {
       const out = await handler(req.method === "POST" ? await readBody(req) : {});
       return Array.isArray(out) ? send(res, out[0], out[1]) : send(res, 200, out);

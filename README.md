@@ -4,7 +4,13 @@
 
 Type a name, pick the right person, and get one AI-built profile from public web data: social profiles, work history, education, city/region, and web mentions (articles, talks, podcasts, news), plus an AI summary where every fact links to its source. Ask follow-up questions in chat.
 
-## Run
+## Deploy (real search)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/usmanbabarDev/prelude)
+
+Click the button, sign in to Render, and paste your `ANTHROPIC_API_KEY` and `EXA_API_KEY` when asked. Render builds `render.yaml` (free web service) and gives you a `*.onrender.com` URL. Each visitor is limited to 10 profiles, 30 searches and 40 questions per hour. On the free plan the service sleeps after 15 idle minutes (first request then takes ~1 min), and removal requests in `optouts.json` reset on redeploy.
+
+## Run locally
 
 ```bash
 npm install

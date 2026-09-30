@@ -1,0 +1,17 @@
+# Render Blueprint: one web service running server.js.
+# Render asks for the two API keys when you create the Blueprint (sync: false).
+services:
+  - type: web
+    name: prelude
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: EXA_API_KEY
+        sync: false

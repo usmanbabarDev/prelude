@@ -1,7 +1,7 @@
 {
   "name": "prelude",
   "version": "1.0.0",
-  "description": "Purpose-bound, sourced professional briefs",
+  "description": "Find anyone by name: an AI profile built from public web data",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,5 +12,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.129.0",
     "undici": "^5.29.0"
+  },
+  "engines": {
+    "node": ">=17"
   }
 }
