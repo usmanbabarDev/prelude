@@ -17,3 +17,8 @@ search:
   formats:
     - html
     - json
+
+outgoing:
+  # Don't wait on slow or blocked engines; return whatever arrived.
+  request_timeout: 4.0
+  max_request_timeout: 6.0

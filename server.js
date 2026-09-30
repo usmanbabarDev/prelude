@@ -72,7 +72,7 @@ async function searxng(kind, body) {
   if (!HAS_SEARXNG) return null;
   const params = new URLSearchParams({ q: body.q, format: "json", safesearch: "1", categories: kind === "images" ? "images" : kind === "news" ? "news" : "general" });
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
+  const timer = setTimeout(() => ctrl.abort(), 30000);
   try {
     // Keep requests low: every extra page is another hit on the upstream engines.
     const pages = kind === "search" && body.num >= 30 ? [1, 2] : [1];
