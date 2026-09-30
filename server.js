@@ -17,9 +17,13 @@ const Anthropic = require("@anthropic-ai/sdk").default;
 const PORT = Number(process.env.PORT) || 5173;
 const HAS_EXA = Boolean(process.env.EXA_API_KEY);
 const HAS_SERPER = Boolean(process.env.SERPER_API_KEY);
-// LIVE = real web search for anyone (needs Serper and/or Exa).
+const SEARXNG_URL = (process.env.SEARXNG_URL || "").replace(/\/+$/, "");
+const HAS_SEARXNG = Boolean(SEARXNG_URL);
+// LIVE = real web search for anyone (Serper, SearXNG and/or Exa).
 // AI = full AI profiles and follow-up chat (also needs Anthropic).
-const LIVE = HAS_EXA || HAS_SERPER;
+const LIVE = HAS_EXA || HAS_SERPER || HAS_SEARXNG;
+// Searches per visitor per hour; 0 = unlimited (default). AI routes keep their own limits.
+const SEARCH_LIMIT = Number(process.env.SEARCH_LIMIT_PER_HOUR || 0);
 const AI = LIVE && Boolean(process.env.ANTHROPIC_API_KEY);
 const MODEL = "claude-opus-5-5";
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -62,6 +66,41 @@ async function serper(kind, body) {
   return res.json();
 }
 
+// Free, keyless search through a SearXNG instance (SEARXNG_URL). Returns the same shape as Serper.
+// Unreliable by nature: the engines it queries may rate-limit or block it.
+async function searxng(kind, body) {
+  if (!HAS_SEARXNG) return null;
+  const params = new URLSearchParams({ q: body.q, format: "json", safesearch: "1", categories: kind === "images" ? "images" : kind === "news" ? "news" : "general" });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    // Keep requests low: every extra page is another hit on the upstream engines.
+    const pages = kind === "search" && body.num >= 30 ? [1, 2] : [1];
+    let failed = 0;
+    const results = (await Promise.all(pages.map(async (p) => {
+      const qs = new URLSearchParams(params); qs.set("pageno", String(p));
+      const res = await fetch(`${SEARXNG_URL}/search?${qs}`, { headers: { accept: "application/json" }, signal: ctrl.signal });
+      if (!res.ok) throw new Error(`SearXNG failed (${res.status})`);
+      return (await res.json()).results || [];
+    }).map((p) => p.catch(() => { failed++; return []; })))).flat();
+    if (failed === pages.length) throw new Error("The free search engine (SearXNG) didn't respond. It may be waking up or rate-limited — try again in a minute.");
+    if (kind === "images") {
+      return { images: results.filter((r) => r.img_src).map((r) => ({ title: r.title, imageUrl: r.img_src, thumbnailUrl: r.thumbnail_src || r.thumbnail || r.img_src, link: r.url, source: hostOf(r.url) })) };
+    }
+    const list = results.filter((r) => r.url).map((r) => ({ title: r.title, link: r.url, snippet: r.content || "", imageUrl: r.thumbnail || r.img_src || null, date: r.publishedDate || null }));
+    return kind === "news" ? { news: list } : { organic: list };
+  } finally { clearTimeout(timer); }
+}
+
+// Google-style search: Serper if configured and working, otherwise SearXNG.
+async function google(kind, body) {
+  if (HAS_SERPER) {
+    try { const data = await serper(kind, body); if (data) return data; }
+    catch (err) { if (!HAS_SEARXNG) throw err; console.warn(`${err.message}; falling back to SearXNG`); }
+  }
+  return searxng(kind, body);
+}
+
 const PLATFORM_HOSTS = [
   ["linkedin", /linkedin\.com$/], ["x", /(^|\.)(x|twitter)\.com$/], ["instagram", /instagram\.com$/], ["facebook", /facebook\.com$/],
   ["github", /github\.com$/], ["tiktok", /tiktok\.com$/], ["youtube", /youtube\.com$/], ["medium", /medium\.com$/],
@@ -91,13 +130,17 @@ async function findCandidates(name, hint) {
   const q = [name, hint].filter(Boolean).join(" ");
   const quoted = `"${name}" ${hint || ""}`.trim();
   const opts = { type: "auto", contents: { text: { maxCharacters: 600 } } };
+  let lastError = null;
+  const soft = (p) => p.catch((err) => { lastError = err; return null; });
   const [people, social, gWeb, gLinkedIn, gImages] = await Promise.all([
     exaSearch({ ...opts, query: q, category: "people", numResults: 20 }).catch(() => []),
     exaSearch({ ...opts, query: q, numResults: 15, includeDomains: SOCIAL_DOMAINS.concat(["facebook.com", "tiktok.com"]) }).catch(() => []),
-    serper("search", { q: quoted, num: 30 }).catch(() => null),
-    serper("search", { q: `site:linkedin.com/in ${quoted}`, num: 20 }).catch(() => null),
-    serper("images", { q: quoted, num: 60 }).catch(() => null),
+    soft(google("search", { q: quoted, num: 30 })),
+    soft(google("search", { q: `site:linkedin.com/in ${quoted}`, num: 20 })),
+    soft(google("images", { q: quoted, num: 60 })),
   ]);
+  // Every search failed (e.g. SearXNG blocked): say so instead of showing "no results".
+  if (!gWeb && !gLinkedIn && !gImages && !people.length && !social.length && lastError) throw lastError;
 
   // A result must contain every part of the searched name (so "Usman Babar" never matches "Babar Azam").
   const tokens = fold(name).split(/\s+/).filter((t) => t.length > 1);
@@ -150,7 +193,7 @@ async function webSearch(query, num, extra = {}) {
   if (HAS_EXA) return exaSearch({ type: "auto", contents: { text: { maxCharacters: 2000 } }, query, numResults: num, ...extra }).catch(() => []);
   const kind = extra.category === "news" ? "news" : "search";
   const q = extra.includeDomains ? `${query} (${extra.includeDomains.slice(0, 8).map((d) => "site:" + d).join(" OR ")})` : query;
-  const data = await serper(kind, { q, num }).catch(() => null);
+  const data = await google(kind, { q, num }).catch(() => null);
   return ((kind === "news" ? data?.news : data?.organic) || []).map((r) => ({ url: r.link, title: r.title, text: r.snippet || "", publishedDate: null }));
 }
 
@@ -244,7 +287,7 @@ async function answer(profile, question, history) {
 
 // ---------- rate limit (per visitor, in memory) ----------
 // Keeps a public deployment from burning through API credits.
-const LIMITS = { "POST /api/candidates": 30, "POST /api/profile": 10, "POST /api/ask": 40 }; // per hour
+const LIMITS = { "POST /api/candidates": SEARCH_LIMIT, "POST /api/profile": 10, "POST /api/ask": 40 }; // per hour; 0 = unlimited
 const hits = new Map();
 function rateLimited(req, key) {
   const max = LIMITS[key];
@@ -278,7 +321,7 @@ function looksLikeContactLookup(q) {
 }
 
 const routes = {
-  "GET /api/status": async () => ({ live: LIVE, ai: AI, model: AI ? MODEL : null, googleImages: HAS_SERPER }),
+  "GET /api/status": async () => ({ live: LIVE, ai: AI, model: AI ? MODEL : null, search: [HAS_SERPER && "serper", HAS_SEARXNG && "searxng", HAS_EXA && "exa"].filter(Boolean) }),
   "POST /api/candidates": async ({ name, hint }) => {
     if (!name || name.trim().length < 3) return [400, { error: "Enter a full name." }];
     if (looksLikeContactLookup(`${name} ${hint || ""}`)) return [400, { error: "Search by name. Reverse lookups on phone numbers, emails or addresses aren't supported." }];

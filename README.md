@@ -25,7 +25,7 @@ Photos come only from searching the name. There is no face matching or reverse i
 |---|---|---|
 | Who it finds | Notable people with a Wikipedia article | Anyone with a public web presence |
 | Sources | Wikipedia, Wikidata (roles, education, awards, verified social accounts), Hacker News | Google (Serper) and/or Exa; Full profile pages summarised by Claude |
-| Needs | Nothing — runs in the browser, works on GitHub Pages | `SERPER_API_KEY` on a server (Render). `ANTHROPIC_API_KEY` adds Full profile + chat; `EXA_API_KEY` adds more profiles |
+| Needs | Nothing — runs in the browser, works on GitHub Pages | A server (Render) with SearXNG (free, no key) and/or `SERPER_API_KEY`. `ANTHROPIC_API_KEY` adds Full profile + chat; `EXA_API_KEY` adds more profiles |
 | Follow-up chat | Rule-based answers from the profile | Claude, with citations |
 
 The app checks `api/status` on load: if the server reports live mode it uses the server, otherwise it runs free mode in the browser. Free mode only reads professional properties from Wikidata (never spouse, children, relatives, date of birth or residence) and drops summary sentences about family or wealth.
@@ -34,7 +34,18 @@ The app checks `api/status` on load: if the server reports live mode it uses the
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/usmanbabarDev/prelude)
 
-Click the button, sign in to Render, and paste your `SERPER_API_KEY` (serper.dev, 2,500 free searches, no card) when asked. That alone turns on Google-style results with photos for anyone. `ANTHROPIC_API_KEY` (Full profile pages and follow-up chat) and `EXA_API_KEY` (more LinkedIn profiles) are optional; leave them blank to skip. Render builds `render.yaml` (free web service) and gives you a `*.onrender.com` URL. Each visitor is limited to 10 profiles, 30 searches and 40 questions per hour. On the free plan the service sleeps after 15 idle minutes (first request then takes ~1 min), and removal requests in `optouts.json` reset on redeploy.
+Click the button and sign in to Render. The Blueprint creates two free services:
+
+1. **`prelude-searxng`**: a SearXNG instance (open-source metasearch over Google, Bing, DuckDuckGo, Brave and others). **Free, no API key, no search cap.** It's unreliable by nature: the engines it queries can rate-limit or temporarily block it, and then the app shows "try again in a minute".
+2. **`prelude`**: the app. `SEARXNG_URL` defaults to `https://prelude-searxng.onrender.com`; if Render gives the SearXNG service a different URL, paste that URL into `SEARXNG_URL` on the `prelude` service.
+
+All keys are optional; leave them blank for a completely free setup:
+
+- `SERPER_API_KEY` (serper.dev): real Google results and Google Images. Used first when set, with SearXNG as the fallback.
+- `ANTHROPIC_API_KEY`: Full profile pages and follow-up chat.
+- `EXA_API_KEY`: more LinkedIn profiles with photos.
+
+`SEARCH_LIMIT_PER_HOUR` is `0` (unlimited searches). Full profiles and chat stay limited to 10 and 40 per visitor per hour because they cost money. On the free plan each service sleeps after 15 idle minutes, so the first search after that can take about a minute while both wake up. Removal requests in `optouts.json` reset on redeploy.
 
 ## Run locally
 
@@ -43,10 +54,11 @@ npm install
 npm start            # http://localhost:5173, free mode unless API keys are set
 ```
 
-To search anyone, set a Serper key and restart:
+To search anyone, point it at a SearXNG instance (free) or set a Serper key, and restart:
 
 ```bash
-SERPER_API_KEY=... npm start                      # Google-style results for anyone
+SEARXNG_URL=https://your-searxng.example npm start # free search for anyone (no key)
+SERPER_API_KEY=... npm start                      # Google results for anyone
 SERPER_API_KEY=... ANTHROPIC_API_KEY=... npm start # + Full profile pages and chat
 ```
 
@@ -84,6 +96,7 @@ Free: 3 lookups a month. Monthly: $9.99 unlimited. Yearly: $49.99. No weekly pla
 server.js      Node http server: /api/candidates, /api/profile, /api/ask, /api/optout
 public/        index.html, app.css, app.js (vanilla, hash router), sw.js, manifest
   free-search.js  Free mode: Wikipedia + Wikidata + Hacker News lookups, in the browser
+searxng/       Dockerfile + settings.yml for the free SearXNG search service (JSON output on)
 .github/       GitHub Pages workflow that publishes public/ (free mode)
 ```
 

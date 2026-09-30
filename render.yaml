@@ -1,6 +1,20 @@
-# Render Blueprint: one web service running server.js.
-# Render asks for the keys when you create the Blueprint (sync: false). Leave any optional one blank.
+# Render Blueprint: the Prelude app + a free SearXNG search engine (no API key).
+# Render asks for the keys marked sync: false when you create the Blueprint. Leave optional ones blank.
 services:
+  # Free, open-source metasearch (Google, Bing, DuckDuckGo, Brave...). Unreliable: engines may rate-limit it.
+  - type: web
+    name: prelude-searxng
+    runtime: docker
+    plan: free
+    rootDir: searxng
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: SEARXNG_SECRET
+        generateValue: true
+
   - type: web
     name: prelude
     runtime: node
@@ -11,7 +25,13 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
-      # Required for real search: Google results + Google Images (serper.dev, 2,500 free searches)
+      # Public URL of the SearXNG service above. If Render gives it a different name, update this.
+      - key: SEARXNG_URL
+        value: https://prelude-searxng.onrender.com
+      # Searches per visitor per hour; 0 = unlimited.
+      - key: SEARCH_LIMIT_PER_HOUR
+        value: "0"
+      # Optional: Google results + Google Images via serper.dev (tried first, SearXNG is the fallback)
       - key: SERPER_API_KEY
         sync: false
       # Optional: Exa people index (more LinkedIn profiles with photos)
