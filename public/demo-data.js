@@ -5,94 +5,115 @@
 
 const PEOPLE = {
   "maya-pm": {
-    candidate: { id: "maya-pm", name: "Maya Okafor", headline: "VP Product · Lumen Health", snippet: "Leads product for Lumen Health's care-navigation app. Previously Group PM at Ferrow Pay. Writes about onboarding and trust in health apps.", url: "https://lumenhealth.example/team/maya-okafor", image: null, region: "London, UK" },
-    identity: { match_confidence: 94, match_reason: "Company page, conference bio and two interviews share the same role history and photo." },
+    candidate: { id: "maya-pm", name: "Maya Okafor", headline: "VP Product · Lumen Health", snippet: "Leads product for Lumen Health's care-navigation app. Previously Group PM at Ferrow Pay. Writes about onboarding and trust in health apps.", url: "https://lumenhealth.example/team/maya-okafor", region: "London, UK" },
+    identity: { match_confidence: 94, match_reason: "Company page, conference bio, blog and two interviews share the same role history, photo and handle." },
+    summary: "Maya Okafor is VP Product at Lumen Health [1], where she leads the care-navigation app. Before that she was a Group PM at Ferrow Pay working on merchant onboarding [5]. She speaks and writes regularly about reducing onboarding friction and earning user trust in health apps [2][4], and was featured in HealthTech Weekly in 2025 [3].",
+    location: { region: "London, UK", source_ids: [1, 2] },
+    social: [
+      { platform: "linkedin", handle: "in/mayaokafor", url: "https://linkedin.example/in/mayaokafor", source_id: 6 },
+      { platform: "x", handle: "@mayabuilds", url: "https://x.example/mayabuilds", source_id: 7 },
+      { platform: "website", handle: "mayaokafor.example", url: "https://mayaokafor.example", source_id: 4 },
+    ],
+    experience: [
+      { title: "VP Product", org: "Lumen Health", period: "2024 – present", source_ids: [1, 6] },
+      { title: "Group Product Manager", org: "Ferrow Pay", period: "2020 – 2023", source_ids: [5, 6] },
+      { title: "Product Manager", org: "Brightline Travel", period: "2017 – 2020", source_ids: [6] },
+    ],
+    education: [
+      { school: "University College (name not public)", degree: "MSc Human–Computer Interaction", period: "", source_ids: [2] },
+    ],
+    mentions: [
+      { type: "talk", title: "Cutting onboarding steps without hurting activation — ProductConf 2026", date: "2026-03", source_id: 2 },
+      { type: "interview", title: "‘Trust is the onboarding’ — HealthTech Weekly", date: "2025-11", source_id: 3 },
+      { type: "article", title: "Fewer screens, more certainty (personal blog)", date: "2026-08", source_id: 4 },
+    ],
+    topics: ["Product management", "Onboarding", "Health tech", "Fintech", "UX research"],
+    gaps: ["No public information on team size.", "Undergraduate education not found."],
     sources: [
       { id: 1, url: "https://lumenhealth.example/team/maya-okafor", title: "Leadership — Lumen Health", site: "lumenhealth.example", date: "2026-06-02" },
       { id: 2, url: "https://productconf.example/2026/speakers/okafor", title: "Speaker: Maya Okafor — ProductConf 2026", site: "productconf.example", date: "2026-03-14" },
       { id: 3, url: "https://healthtechweekly.example/interviews/okafor-onboarding", title: "‘Trust is the onboarding’: an interview with Maya Okafor", site: "healthtechweekly.example", date: "2025-11-20" },
-      { id: 4, url: "https://mayaokafor.example/writing/fewer-screens", title: "Fewer screens, more certainty (blog)", site: "mayaokafor.example", date: "2026-08-09" },
+      { id: 4, url: "https://mayaokafor.example/writing/fewer-screens", title: "Fewer screens, more certainty", site: "mayaokafor.example", date: "2026-08-09" },
       { id: 5, url: "https://ferrowpay.example/blog/2023-team-update", title: "Ferrow Pay team update, 2023", site: "ferrowpay.example", date: "2023-05-01" },
+      { id: 6, url: "https://linkedin.example/in/mayaokafor", title: "Maya Okafor — LinkedIn", site: "linkedin.example", date: null },
+      { id: 7, url: "https://x.example/mayabuilds", title: "Maya Okafor (@mayabuilds) — X", site: "x.example", date: null },
     ],
-    facts: [
-      { category: "role", text: "VP Product at Lumen Health since early 2024, owning the care-navigation app.", source_ids: [1, 2], confidence: "high", as_of: "2026-06" },
-      { category: "company", text: "Previously Group PM at Ferrow Pay, leading merchant onboarding.", source_ids: [5, 2], confidence: "high", as_of: "2023" },
-      { category: "talk", text: "Spoke at ProductConf 2026 on cutting onboarding steps without hurting activation.", source_ids: [2], confidence: "high", as_of: "2026-03" },
-      { category: "publication", text: "Recent post argues health apps should ask fewer questions up front and explain every data request.", source_ids: [4], confidence: "high", as_of: "2026-08" },
-      { category: "education", text: "MSc in Human–Computer Interaction (mentioned in conference bio; institution not named).", source_ids: [2], confidence: "medium", as_of: "" },
-    ],
-    common_ground: [
-      { text: "You both care about onboarding metrics — she has published specific numbers on activation.", source_ids: [3] },
-      { text: "Fintech background overlaps with payments work at Ferrow Pay.", source_ids: [5] },
-    ],
-    avoid: ["Don't pitch features that add onboarding steps without a clear trust payoff — it's her stated pet peeve.", "Her Ferrow Pay role ended in 2023; don't treat it as current."],
-    gaps: ["No public info on team size or budget ownership.", "Unclear who she reports to at Lumen Health."],
-    themes: { topic: "onboarding & trust in health apps", recent: "her August post on fewer screens", company: "Lumen Health" },
   },
   "maya-ceramics": {
-    candidate: { id: "maya-ceramics", name: "Maya Okafor", headline: "Ceramicist & teacher · Kiln Street Studio", snippet: "Runs wheel-throwing classes and sells functional stoneware. Exhibited at the Harbour Craft Fair.", url: "https://kilnstreet.example/about", image: null, region: "Bristol, UK" },
-    identity: { match_confidence: 88, match_reason: "Studio site and craft-fair listing describe the same studio; clearly a different person from the Lumen Health VP." },
+    candidate: { id: "maya-ceramics", name: "Maya Okafor", headline: "Ceramicist & teacher · Kiln Street Studio", snippet: "Runs wheel-throwing classes and sells functional stoneware. Exhibited at the Harbour Craft Fair.", url: "https://kilnstreet.example/about", region: "Bristol, UK" },
+    identity: { match_confidence: 88, match_reason: "Studio site, Instagram-style portfolio and craft-fair listing describe the same studio. Clearly a different person from the Lumen Health VP." },
+    summary: "This Maya Okafor is a ceramicist who founded Kiln Street Studio in Bristol, where she teaches wheel-throwing classes [1]. She exhibited functional stoneware at the Harbour Craft Fair in 2025 [2].",
+    location: { region: "Bristol, UK", source_ids: [1] },
+    social: [
+      { platform: "instagram", handle: "@kilnstreetmaya", url: "https://instagram.example/kilnstreetmaya", source_id: 3 },
+      { platform: "website", handle: "kilnstreet.example", url: "https://kilnstreet.example", source_id: 1 },
+    ],
+    experience: [{ title: "Founder & teacher", org: "Kiln Street Studio", period: "2019 – present", source_ids: [1] }],
+    education: [],
+    mentions: [{ type: "event", title: "Harbour Craft Fair 2025 — featured maker", date: "2025-09", source_id: 2 }],
+    topics: ["Ceramics", "Teaching", "Small business"],
+    gaps: ["Education not found in public sources."],
     sources: [
       { id: 1, url: "https://kilnstreet.example/about", title: "About — Kiln Street Studio", site: "kilnstreet.example", date: "2026-02-10" },
       { id: 2, url: "https://harbourcraft.example/2025/makers", title: "Harbour Craft Fair 2025 — Makers", site: "harbourcraft.example", date: "2025-09-01" },
+      { id: 3, url: "https://instagram.example/kilnstreetmaya", title: "Kiln Street (@kilnstreetmaya)", site: "instagram.example", date: null },
     ],
-    facts: [
-      { category: "role", text: "Founder of Kiln Street Studio, teaching beginner and intermediate wheel-throwing.", source_ids: [1], confidence: "high", as_of: "2026-02" },
-      { category: "project", text: "Exhibited functional stoneware at Harbour Craft Fair 2025.", source_ids: [2], confidence: "high", as_of: "2025-09" },
-    ],
-    common_ground: [],
-    avoid: ["Don't confuse with Maya Okafor of Lumen Health — different person."],
-    gaps: ["Very little public professional information beyond the studio."],
-    themes: { topic: "running a small craft business", recent: "the Harbour Craft Fair", company: "Kiln Street Studio" },
   },
   "daniel": {
-    candidate: { id: "daniel", name: "Daniel Reyes", headline: "Co-founder & CEO · Kelpworks Robotics", snippet: "Building autonomous underwater drones for aquaculture inspection. Ex-marine engineer. Seed round led by Ocean Ventures (fictional).", url: "https://kelpworks.example/team", image: null, region: "Lisbon, Portugal" },
-    identity: { match_confidence: 91, match_reason: "Company site, funding announcement and GitHub org all reference the same founder and product." },
+    candidate: { id: "daniel", name: "Daniel Reyes", headline: "Co-founder & CEO · Kelpworks Robotics", snippet: "Building autonomous underwater drones for aquaculture inspection. Ex-marine engineer.", url: "https://kelpworks.example/team", region: "Lisbon, Portugal" },
+    identity: { match_confidence: 91, match_reason: "Company site, funding announcement, GitHub org and podcast all reference the same founder and product." },
+    summary: "Daniel Reyes is co-founder and CEO of Kelpworks Robotics, which builds underwater inspection drones for fish farms [1]. The company raised a seed round in April 2026 [2]. He maintains an open-source sonar library on GitHub [3] and has talked on podcasts about hiring embedded engineers [4].",
+    location: { region: "Lisbon, Portugal", source_ids: [1, 2] },
+    social: [
+      { platform: "github", handle: "dreyes-kelp", url: "https://github.example/dreyes-kelp", source_id: 3 },
+      { platform: "linkedin", handle: "in/danielreyes-kelp", url: "https://linkedin.example/in/danielreyes-kelp", source_id: 5 },
+      { platform: "x", handle: "@danreyes_sea", url: "https://x.example/danreyes_sea", source_id: 6 },
+    ],
+    experience: [
+      { title: "Co-founder & CEO", org: "Kelpworks Robotics", period: "2024 – present", source_ids: [1, 5] },
+      { title: "Marine Systems Engineer", org: "Atlantic Offshore Group", period: "2018 – 2024", source_ids: [5] },
+    ],
+    education: [{ school: "Instituto Técnico (fictional)", degree: "MEng Naval & Marine Engineering", period: "2013 – 2018", source_ids: [5] }],
+    mentions: [
+      { type: "news", title: "Kelpworks raises seed to automate fish-farm inspection", date: "2026-04", source_id: 2 },
+      { type: "podcast", title: "Blue Economy Podcast #88: Robots under the sea", date: "2026-05", source_id: 4 },
+      { type: "project", title: "kelpworks/sonar-tools — open-source sonar processing", date: "2026-09", source_id: 3 },
+    ],
+    topics: ["Robotics", "Aquaculture", "Open source", "Startups", "Sonar"],
+    gaps: ["Revenue and customer count are not public."],
     sources: [
       { id: 1, url: "https://kelpworks.example/team", title: "Team — Kelpworks Robotics", site: "kelpworks.example", date: "2026-07-01" },
       { id: 2, url: "https://startupnews.example/kelpworks-seed", title: "Kelpworks raises seed to automate fish-farm inspection", site: "startupnews.example", date: "2026-04-22" },
-      { id: 3, url: "https://code.example/kelpworks", title: "kelpworks — open-source sonar tooling", site: "code.example", date: "2026-09-12" },
-      { id: 4, url: "https://bluepodcast.example/ep/88", title: "Blue Economy Podcast #88: Robots under the sea", site: "bluepodcast.example", date: "2026-05-30" },
+      { id: 3, url: "https://github.example/dreyes-kelp", title: "dreyes-kelp — GitHub", site: "github.example", date: "2026-09-12" },
+      { id: 4, url: "https://bluepodcast.example/ep/88", title: "Blue Economy Podcast #88", site: "bluepodcast.example", date: "2026-05-30" },
+      { id: 5, url: "https://linkedin.example/in/danielreyes-kelp", title: "Daniel Reyes — LinkedIn", site: "linkedin.example", date: null },
+      { id: 6, url: "https://x.example/danreyes_sea", title: "Daniel Reyes (@danreyes_sea) — X", site: "x.example", date: null },
     ],
-    facts: [
-      { category: "role", text: "Co-founder and CEO of Kelpworks Robotics (founded 2024).", source_ids: [1, 2], confidence: "high", as_of: "2026-07" },
-      { category: "company", text: "Raised a seed round in April 2026 to scale drone inspections for salmon farms.", source_ids: [2], confidence: "high", as_of: "2026-04" },
-      { category: "project", text: "Maintains an open-source sonar-processing library; active commits this month.", source_ids: [3], confidence: "high", as_of: "2026-09" },
-      { category: "talk", text: "On a podcast, said hiring embedded engineers is their biggest bottleneck.", source_ids: [4], confidence: "medium", as_of: "2026-05" },
-      { category: "education", text: "Background in marine engineering (degree mentioned on podcast; school not named).", source_ids: [4], confidence: "low", as_of: "" },
-    ],
-    common_ground: [{ text: "Open-source — his sonar library welcomes outside contributors.", source_ids: [3] }],
-    avoid: ["Don't lead with valuation questions; he deflected them on the podcast.", "Revenue figures are not public — don't quote any."],
-    gaps: ["No public info on revenue or customer count.", "Co-founder's name not listed on the team page."],
-    themes: { topic: "underwater robotics for aquaculture", recent: "the April seed round", company: "Kelpworks Robotics" },
   },
   "aiko": {
-    candidate: { id: "aiko", name: "Aiko Tanabe", headline: "Principal Data Scientist · Northwind Grocers", snippet: "Forecasting and pricing at a regional grocery chain. Kaggle competitions grandmaster. Speaks on causal inference.", url: "https://northwindgrocers.example/careers/data", image: null, region: "Osaka, Japan" },
-    identity: { match_confidence: 86, match_reason: "Employer page and meetup talk match; one older profile under a similar name was excluded." },
+    candidate: { id: "aiko", name: "Aiko Tanabe", headline: "Principal Data Scientist · Northwind Grocers", snippet: "Forecasting and pricing at a regional grocery chain. Speaks on causal inference.", url: "https://northwindgrocers.example/careers/data", region: "Osaka, Japan" },
+    identity: { match_confidence: 86, match_reason: "Employer page, meetup talk and competition profile match. One older profile under a similar name was excluded." },
+    summary: "Aiko Tanabe is a Principal Data Scientist at Northwind Grocers working on demand forecasting and pricing [1]. She gave a meetup talk on running causal pricing experiments across 300 stores [2] and ranks highly on a data-science competition platform [3].",
+    location: { region: "Osaka, Japan", source_ids: [1] },
+    social: [
+      { platform: "github", handle: "atanabe", url: "https://github.example/atanabe", source_id: 4 },
+      { platform: "website", handle: "competitions.example/atanabe", url: "https://competitions.example/users/atanabe", source_id: 3 },
+    ],
+    experience: [{ title: "Principal Data Scientist", org: "Northwind Grocers", period: "2022 – present", source_ids: [1] }],
+    education: [],
+    mentions: [
+      { type: "talk", title: "Causal pricing experiments at grocery scale", date: "2026-01", source_id: 2 },
+      { type: "project", title: "Top-ranked competition profile", date: "2026-08", source_id: 3 },
+    ],
+    topics: ["Data science", "Causal inference", "Forecasting", "Retail"],
+    gaps: ["Education not found.", "An older profile with a similar name (different city) was excluded."],
     sources: [
       { id: 1, url: "https://northwindgrocers.example/careers/data", title: "Data team — Northwind Grocers", site: "northwindgrocers.example", date: "2026-05-15" },
       { id: 2, url: "https://causalmeetup.example/talks/tanabe-pricing", title: "Causal pricing experiments at a grocery scale", site: "causalmeetup.example", date: "2026-01-28" },
       { id: 3, url: "https://competitions.example/users/atanabe", title: "atanabe — competition profile", site: "competitions.example", date: "2026-08-30" },
+      { id: 4, url: "https://github.example/atanabe", title: "atanabe — GitHub", site: "github.example", date: null },
     ],
-    facts: [
-      { category: "role", text: "Principal Data Scientist working on demand forecasting and pricing.", source_ids: [1], confidence: "high", as_of: "2026-05" },
-      { category: "talk", text: "Gave a meetup talk on running causal pricing experiments across 300 stores.", source_ids: [2], confidence: "high", as_of: "2026-01" },
-      { category: "project", text: "Top-ranked competitor on a data-science competition platform.", source_ids: [3], confidence: "medium", as_of: "2026-08" },
-    ],
-    common_ground: [],
-    avoid: ["An older profile with a similar name (different city) was excluded — don't mix them up."],
-    gaps: ["Education not found in public sources.", "Team size unknown."],
-    themes: { topic: "causal inference for pricing", recent: "her meetup talk on pricing experiments", company: "Northwind Grocers" },
   },
-};
-
-const PURPOSE_COPY = {
-  "Sales call": { lead: "For a sales call", ask: (t) => [`What's the hardest part of ${t.topic} for your team right now?`, `How do you evaluate new tools at ${t.company}?`, `Who else would weigh in on a decision like this?`] },
-  "Hiring": { lead: "For a hiring conversation", ask: (t) => [`What would you want to own in your first 90 days?`, `What did you learn from ${t.recent}?`, `What kind of team do you do your best work in?`] },
-  "Investor meeting": { lead: "For an investor meeting", ask: (t) => [`What's your thesis on ${t.topic}?`, `What would make you lean in after ${t.recent}?`, `How do you like to work with founders after investing?`] },
-  "Partnership": { lead: "For a partnership chat", ask: (t) => [`Where does ${t.company} want outside partners today?`, `What made past partnerships work — or not?`, `What would a small first pilot look like?`] },
-  "Networking": { lead: "For a networking coffee", ask: (t) => [`How did you get into ${t.topic}?`, `What surprised you about ${t.recent}?`, `Who should I be learning from in this space?`] },
-  "Podcast / event": { lead: "For a podcast or event invite", ask: (t) => [`What's a contrarian view you hold on ${t.topic}?`, `What's the story behind ${t.recent}?`, `What should the audience try after listening?`] },
 };
 
 function candidates(name) {
@@ -102,41 +123,33 @@ function candidates(name) {
   return (hits.length ? hits : all).map((c) => ({ ...c, demo: true }));
 }
 
-function brief(candidate, purpose) {
+function profile(candidate) {
   const p = PEOPLE[candidate.id] || PEOPLE["maya-pm"];
-  const copy = PURPOSE_COPY[purpose] || PURPOSE_COPY["Networking"];
-  const t = p.themes;
-  const topFact = p.facts[0];
+  const { candidate: c, ...rest } = p;
   return {
     demo: true,
-    purpose,
     generatedAt: new Date().toISOString(),
-    identity: { name: p.candidate.name, headline: p.candidate.headline, region: p.candidate.region, ...p.identity },
-    tldr: `${copy.lead} with ${p.candidate.name} (${p.candidate.headline}): ${topFact.text} Open with ${t.recent} — it's recent and squarely on ${t.topic}.`,
-    facts: p.facts,
-    talking_points: [
-      { point: `Ask about ${t.recent}.`, why: "It's their most recent public work, so it's top of mind.", source_ids: [p.sources[p.sources.length > 3 ? 3 : 0].id] },
-      { point: `Connect your agenda to ${t.topic}.`, why: "It's the theme that runs through every source.", source_ids: p.sources.slice(0, 2).map((s) => s.id) },
-      { point: `Reference their work at ${t.company} specifically, not the industry in general.`, why: "Shows you did your homework without being creepy.", source_ids: [1] },
-    ],
-    common_ground: p.common_ground,
-    questions_to_ask: copy.ask(t),
-    avoid: p.avoid,
-    gaps: p.gaps,
-    sources: p.sources,
+    ...rest,
+    identity: { name: c.name, headline: c.headline, ...p.identity },
   };
 }
 
-function answer(b, question) {
+function answer(prof, question) {
   const q = question.toLowerCase();
-  if (/address|live|phone|married|wife|husband|kids|children|salary|age|religio|politic|health|dating/.test(q)) {
-    return "That's personal information outside Prelude's scope — briefs cover professional context only. You could ask instead about their current role or recent work.";
+  if (/address|where .*live|phone|number|email|married|wife|husband|kids|children|relative|family|age|born|religio|politic|health/.test(q)) {
+    return "Profiles don't include home addresses, phone numbers, personal emails or family details. Try asking about their work, projects or public appearances.";
   }
-  const words = q.split(/\W+/).filter((w) => w.length > 3);
-  const fact = b.facts.find((f) => words.some((w) => f.text.toLowerCase().includes(w))) || b.facts[0];
-  return `${fact.text} [${fact.source_ids.join("][")}] (Demo answer — connect API keys for real follow-ups.)`;
+  if (/work|job|role|company|doing/.test(q)) {
+    const e = prof.experience[0];
+    return `${prof.identity.name} is currently ${e.title} at ${e.org} (${e.period}). ${e.source_ids.map((i) => `[${i}]`).join("")} (Demo answer — connect API keys for real follow-ups.)`;
+  }
+  if (/social|twitter|linkedin|github|instagram|online/.test(q)) {
+    return `Public profiles found: ${prof.social.map((s) => `${s.platform} ${s.handle} [${s.source_id}]`).join(", ")}. (Demo answer.)`;
+  }
+  const m = prof.mentions[0];
+  return `${prof.summary.split(". ")[0]}. Most recent public mention: “${m.title}” (${m.date}) [${m.source_id}]. (Demo answer — connect API keys for real follow-ups.)`;
 }
 
-const api = { candidates, brief, answer };
+const api = { candidates, profile, answer };
 if (typeof module !== "undefined") module.exports = api;
 else window.PreludeDemo = api;

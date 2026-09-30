@@ -1,15 +1,14 @@
-# Prelude: know who you're meeting
+# Prelude: find anyone by name
 
 **Live demo:** https://usmanbabardev.github.io/prelude/ (static build with fictional people; runs entirely in the browser)
 
-A mobile-first web app (it can be installed on a phone) that gives you a short, sourced brief on the person you're about to meet, written for the reason you're meeting them.
+Type a name, pick the right person, and get one AI-built profile from public web data: social profiles, work history, education, city/region, and web mentions (articles, talks, podcasts, news), plus an AI summary where every fact links to its source. Ask follow-up questions in chat.
 
 ## Run
 
 ```bash
-cd prelude
 npm install
-npm start            # http://localhost:5173, runs in DEMO mode with fictional people
+npm start            # http://localhost:5173, DEMO mode with fictional people
 ```
 
 To search real people, set both keys and restart:
@@ -18,8 +17,19 @@ To search real people, set both keys and restart:
 ANTHROPIC_API_KEY=... EXA_API_KEY=... npm start
 ```
 
-- **Exa** (`category: "people"`, about $7 per 1k searches) finds the candidate profiles and the web pages that mention them.
-- **Claude Opus 5.5** writes the brief. It returns structured JSON, and every claim cites a source id. It also answers follow-up questions. Refusal fallback is turned on (`fallbacks: "default"`).
+- **Exa** finds candidate profiles (`category: "people"`), then runs three searches in parallel for the chosen person: social sites, the general web, and news.
+- **Claude Opus 5.5** turns up to 18 sources into a structured profile (JSON schema) with source ids on every item, and answers follow-up questions. Refusal fallback is on (`fallbacks: "default"`).
+
+## Limits (same as the market leader)
+
+- Public web pages only. Search is by name; reverse lookups by phone, email or address are rejected.
+- Location is city/region only. No home addresses, phone numbers, personal emails, relatives, dates of birth, health, religion or politics.
+- Anyone can request correction or removal ("Is this you?"); removed profiles are filtered from results.
+- Not a consumer reporting agency; not for employment, tenant, credit or insurance decisions.
+
+## Pricing shown in the app
+
+Free: 3 lookups a month. Monthly: $9.99 unlimited. Yearly: $49.99. No weekly plans (the competitor charges $7.99/week).
 
 ## Research summary
 
@@ -35,19 +45,10 @@ ANTHROPIC_API_KEY=... EXA_API_KEY=... npm start
 
 **Main complaints in reviews:** a "free" app that then asks for about $40, billing that is hard to cancel, results that are outdated or wrong, and "I had to feed it my own info".
 
-## The gap Prelude targets
-
-1. **Purpose first.** You pick why you're meeting (sales, hiring, investing, partnership, networking, podcast). You get talking points, questions to ask and things to avoid, not just a pile of facts.
-2. **Every claim is sourced and scored.** Each fact has a citation, an "as of" date and a confidence level. There is an identity-match score. It won't merge two people just because they share a name. Anything it couldn't find is listed under "What we couldn't verify".
-3. **Professional context only.** It doesn't search by phone number, email or address, and it won't give out home location, family, health and similar details. This rule is enforced in both the prompt and the UI.
-4. **The subject has a say.** Every brief has an "Is this you?" link to request a correction or removal. Removed people are filtered out of search results.
-5. **Honest pricing.** 5 free briefs a month with no card, $12/month for Pro, or $6 for a 10-brief pack that never expires. No weekly plans and no paywall before the first result.
-6. **Built around meetings, mobile first.** A meetings list with one-tap prep, briefs saved for offline use, a share sheet, and install to your home screen. Calendar sync is on the roadmap.
-
 ## Structure
 
 ```
-server.js      Node http server: /api/candidates, /api/brief, /api/ask, /api/optout
+server.js      Node http server: /api/candidates, /api/profile, /api/ask, /api/optout
 public/        index.html, app.css, app.js (vanilla, hash router), sw.js, manifest
   demo-data.js Fictional personas (reserved .example domains), shared by the server and the static build
 .github/       GitHub Pages workflow that publishes public/ as the static demo
@@ -57,4 +58,4 @@ Without a server (e.g. on GitHub Pages) the front end answers its own API calls 
 
 ## Not built yet
 
-Payments, accounts and server-side storage, calendar OAuth, email delivery before a meeting, and team workspaces.
+Payments, user accounts and server-side history, a moderation queue for removal requests, and hosting for live mode (GitHub Pages is static-only).
