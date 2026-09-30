@@ -1,0 +1,16 @@
+{
+  "name": "prelude",
+  "version": "1.0.0",
+  "description": "Purpose-bound, sourced professional briefs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
+    "undici": "^5.29.0"
+  }
+}

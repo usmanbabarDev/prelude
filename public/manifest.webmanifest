@@ -1,0 +1,9 @@
+{
+  "name": "Prelude — know who you're meeting",
+  "short_name": "Prelude",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f5f1",
+  "theme_color": "#4b3df5",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
