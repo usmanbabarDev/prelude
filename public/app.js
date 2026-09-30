@@ -46,7 +46,7 @@
   const PLATFORM = {
     linkedin: ["LinkedIn", "#0a66c2", "in"], github: ["GitHub", "#24292f", "gh"], x: ["X", "#000000", "𝕏"], instagram: ["Instagram", "#d62976", "ig"],
     youtube: ["YouTube", "#ff0000", "▶"], medium: ["Medium", "#111111", "M"], substack: ["Substack", "#ff6719", "S"], threads: ["Threads", "#000000", "@"],
-    bluesky: ["Bluesky", "#1185fe", "b"], website: ["Website", "#4b3df5", "◎"], tiktok: ["TikTok", "#010101", "♪"], facebook: ["Facebook", "#1877f2", "f"], other: ["Profile", "#6b6b76", "↗"],
+    bluesky: ["Bluesky", "#1185fe", "b"], website: ["Website", "#4b3df5", "◎"], tiktok: ["TikTok", "#010101", "♪"], facebook: ["Facebook", "#1877f2", "f"], wikipedia: ["Wikipedia", "#333333", "W"], other: ["Profile", "#6b6b76", "↗"],
   };
   const MENTION = { article: "Article", interview: "Interview", talk: "Talk", podcast: "Podcast", news: "News", publication: "Publication", project: "Project", event: "Event", award: "Award", other: "Mention" };
 
@@ -60,7 +60,10 @@
     "api/candidates": async ({ name, hint }) => {
       if (CONTACT_LOOKUP.test(`${name} ${hint || ""}`)) throw new Error("Search by name. Reverse lookups on phone numbers, emails or addresses aren't supported.");
       const removed = store.get("optouts", []);
-      return { candidates: (await FreeSearch.candidates(name, hint)).filter((c) => !removed.includes(c.url)) };
+      const [found, commons] = await Promise.all([FreeSearch.candidates(name, hint), FreeSearch.images(name)]);
+      const candidates = found.filter((c) => !removed.includes(c.url));
+      const images = [...candidates.filter((c) => c.image && c.platform === "wikipedia").map((c) => ({ thumb: c.image, full: c.image, link: c.url, title: c.name, site: "wikipedia.org" })), ...commons];
+      return { candidates, images };
     },
     "api/profile": async ({ candidate }) => FreeSearch.profile(candidate),
     "api/ask": async ({ profile, question }) => { await sleep(400); return { answer: FreeSearch.answer(profile, question) }; },
@@ -168,37 +171,95 @@
     if (state.search.name.split(/\s+/).length < 2) { if (err) { err.hidden = false; err.textContent = "Enter a first and last name."; } return; }
     view.innerHTML = `<p class="eyebrow">Searching the public web</p><h2 style="margin-bottom:16px">${esc(state.search.name)}</h2><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
     try {
-      const { candidates } = await api("api/candidates", state.search);
-      state.candidates = candidates;
+      const { candidates, images } = await api("api/candidates", state.search);
+      state.candidates = candidates; state.images = images || [];
+      state.resultsTab = "profiles"; state.filter = "all";
       go("#/results");
     } catch (e) {
       renderHome(); const er = $("#searchErr"); er.hidden = false; er.textContent = e.message;
     }
   }
 
-  // ---------- Results ----------
-  function renderResults() {
-    const c = state.candidates;
-    const sameName = c.filter((x) => x.name.toLowerCase() === (c[0]?.name || "").toLowerCase()).length > 1;
-    view.innerHTML = `
-      <p class="eyebrow">${c.length} match${c.length === 1 ? "" : "es"}</p>
-      <h2>Which ${esc(state.search.name)}?</h2>
-      <p class="lede small">Pick the right person. We only combine sources that belong to the same person.</p>
-      ${state.live ? "" : `<div class="notice" style="margin-bottom:12px">${ICON.info}<span><b>Free mode</b> searches Wikipedia and Wikidata, so it finds well-known people. Searching anyone on the web needs the live version with API keys.</span></div>`}
-      ${sameName ? `<div class="notice warn" style="margin-bottom:12px">${ICON.info}<span>Several people share this name — check the role and location.</span></div>` : ""}
-      ${c.length ? c.map((x, i) => `
-        <button class="row" data-i="${i}">
-          ${avatar(x.name, false, x.url, x.image)}
+  // ---------- Results: every public profile + photos for the name ----------
+  const platformInfo = (p) => PLATFORM[p] || PLATFORM.website;
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
+  const googleSite = (site) => `https://www.google.com/search?q=${encodeURIComponent(`site:${site} "${state.search.name}"`)}`;
+  const ELSEWHERE = [
+    ["LinkedIn", "linkedin", () => googleSite("linkedin.com/in")],
+    ["Instagram", "instagram", () => googleSite("instagram.com")],
+    ["X", "x", () => googleSite("x.com")],
+    ["Facebook", "facebook", () => googleSite("facebook.com")],
+    ["TikTok", "tiktok", () => googleSite("tiktok.com")],
+    ["Google Images", "website", () => `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`"${state.search.name}"`)}`],
+  ];
+
+  function profileCard(x, i) {
+    const [label, color, glyph] = platformInfo(x.platform);
+    return `
+      <article class="pcard" data-i="${i}">
+        <div class="pcard-top">
+          <div class="pphoto">${avatar(x.name, true, x.url, x.image)}<span class="pbadge" style="background:${color}" title="${esc(label)}">${esc(glyph)}</span></div>
           <div class="grow">
             <div class="title">${esc(x.name)}</div>
             <div class="sub">${esc(x.headline)}</div>
-            ${x.region ? `<div class="small muted">${esc(x.region)}</div>` : ""}
-            <div class="snip">${esc(x.snippet)}</div>
-          </div>${ICON.chev}
-        </button>`).join("") : `<div class="empty">${ICON.search}<p>No public profiles found. Try adding a city or company.</p></div>`}
+            <div class="small muted">${esc(label)} · ${esc(hostOf(x.url))}</div>
+          </div>
+        </div>
+        ${x.snippet ? `<p class="snip">${esc(x.snippet)}</p>` : ""}
+        <div class="pcard-actions">
+          <a class="btn ghost sm" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener noreferrer">Open ${esc(label)} ↗</a>
+          <button class="btn primary sm" type="button">Full profile</button>
+        </div>
+      </article>`;
+  }
+
+  function renderResults() {
+    const all = state.candidates; const imgs = state.images || [];
+    const counts = {};
+    all.forEach((c) => { const p = c.platform || "website"; counts[p] = (counts[p] || 0) + 1; });
+    const list = state.filter === "all" ? all : all.filter((c) => (c.platform || "website") === state.filter);
+    const filters = Object.keys(counts).length > 1
+      ? `<div class="chips" style="margin-bottom:12px"><button class="chip" data-f="all" aria-pressed="${state.filter === "all"}">All ${all.length}</button>${Object.entries(counts).sort((x, y) => y[1] - x[1]).map(([p, n]) => `<button class="chip" data-f="${esc(p)}" aria-pressed="${state.filter === p}">${esc(platformInfo(p)[0])} ${n}</button>`).join("")}</div>`
+      : "";
+    const profilesHtml = filters + (list.length
+      ? list.map((x) => profileCard(x, all.indexOf(x))).join("")
+      : `<div class="empty">${ICON.search}<p>No profiles found${state.live ? ". Try adding a city or company." : " in free mode. Try the buttons below."}</p></div>`);
+    const imagesHtml = imgs.length
+      ? `<div class="img-grid">${imgs.map((im, i) => `<button class="img-tile" data-img="${i}" aria-label="${esc(im.title)}"><img src="${esc(im.thumb)}" alt="" loading="${i < 12 ? "eager" : "lazy"}" referrerpolicy="no-referrer"></button>`).join("")}</div><p class="muted small" style="text-align:center">Each photo links to the page it came from.</p>`
+      : `<div class="empty">${ICON.search}<p>No photos found. Try Google Images below.</p></div>`;
+
+    view.innerHTML = `
+      <p class="eyebrow">Results for</p>
+      <h2>${esc(state.search.name)}</h2>
+      <p class="muted small" style="margin:4px 0 0">${all.length} profile${all.length === 1 ? "" : "s"} · ${imgs.length} photo${imgs.length === 1 ? "" : "s"}${state.search.hint ? ` · ${esc(state.search.hint)}` : ""}</p>
+      ${state.live ? "" : `<div class="notice" style="margin-top:12px">${ICON.info}<span><b>Free mode</b> finds well-known people via Wikipedia. Use the buttons below to search LinkedIn, Instagram and more for anyone.</span></div>`}
+      <div class="seg seg-2" role="tablist">
+        <button role="tab" data-rt="profiles" aria-selected="${state.resultsTab === "profiles"}">Profiles (${all.length})</button>
+        <button role="tab" data-rt="images" aria-selected="${state.resultsTab === "images"}">Images (${imgs.length})</button>
+      </div>
+      ${state.resultsTab === "profiles" ? profilesHtml : imagesHtml}
+      <div class="section">
+        <div class="section-head"><h2>Search this name on</h2></div>
+        <div class="elsewhere">${ELSEWHERE.map(([label, p, url]) => { const [, color, glyph] = platformInfo(p); return `<a class="social" href="${esc(url())}" target="_blank" rel="noopener noreferrer"><span class="glyph" style="background:${color}">${esc(glyph)}</span><b>${esc(label)}</b></a>`; }).join("")}</div>
+      </div>
       <p class="subject-note">Not here? <button class="linkish" id="refine">Refine search</button></p>`;
-    view.querySelectorAll(".row").forEach((r) => r.addEventListener("click", () => buildProfile(c[r.dataset.i])));
+
+    view.querySelectorAll("[data-rt]").forEach((b) => (b.onclick = () => { state.resultsTab = b.dataset.rt; renderResults(); }));
+    view.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { state.filter = b.dataset.f; renderResults(); }));
+    view.querySelectorAll(".pcard").forEach((card) => card.addEventListener("click", (e) => { if (!e.target.closest("a")) buildProfile(all[card.dataset.i]); }));
+    view.querySelectorAll("[data-img]").forEach((t) => (t.onclick = () => showImage(imgs[t.dataset.img])));
+    view.querySelectorAll(".img-tile img").forEach((im) => (im.onerror = () => im.closest(".img-tile").remove()));
+    view.querySelectorAll(".pcard img.avatar").forEach((im) => (im.onerror = () => { const c = all[im.closest(".pcard").dataset.i]; im.outerHTML = avatar(c.name, true, c.url); }));
     $("#refine").addEventListener("click", () => go("#/"));
+  }
+
+  function showImage(im) {
+    openSheet(`<img class="sheet-img" src="${esc(im.full || im.thumb)}" alt="" referrerpolicy="no-referrer">
+      <h2 style="margin-top:12px">${esc(im.title || "Image")}</h2><p class="muted small">${esc(im.site || hostOf(im.link))}</p>
+      <div class="actions"><button class="btn ghost" id="x">Close</button><a class="btn primary" href="${esc(safeUrl(im.link))}" target="_blank" rel="noopener noreferrer">Source page ↗</a></div>`, (el) => {
+      $("#x", el).onclick = closeSheet;
+      const big = $(".sheet-img", el); big.onerror = () => { big.onerror = null; big.src = im.thumb; };
+    });
   }
 
   // ---------- Profile generation ----------

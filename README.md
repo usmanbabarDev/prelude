@@ -4,6 +4,21 @@
 
 Type a name, pick the right person, and get one AI-built profile from public web data: social profiles, work history, education, city/region, and web mentions (articles, talks, podcasts, news), plus an AI summary where every fact links to its source. Ask follow-up questions in chat.
 
+## Search results (like Google for a name)
+
+Searching a name opens a results page with two tabs:
+
+- **Profiles**: every public profile found for the name, each with its photo, platform badge (LinkedIn, Instagram, X, Facebook, GitHub, TikTok, YouTube, Wikipedia, website), headline and snippet. Filter by platform, open the original profile, or tap **Full profile** for the AI-built profile.
+- **Images**: a photo grid for the name. Every photo links back to the page it came from.
+- **Search this name on**: one-tap Google site searches for LinkedIn, Instagram, X, Facebook, TikTok and Google Images, so you can go further for anyone.
+
+Photos come only from searching the name. There is no face matching or reverse image search.
+
+| | Free mode | Live mode |
+|---|---|---|
+| Profiles | Wikipedia + each person's official accounts listed on Wikidata | Exa people index (LinkedIn etc.) + Exa social search, plus Google results via Serper if `SERPER_API_KEY` is set |
+| Images | Wikipedia photo + Wikimedia Commons photos whose file name matches | Profile photos from results, plus Google Images via Serper |
+
 ## Two modes
 
 | | Free mode | Live mode |
@@ -19,7 +34,7 @@ The app checks `api/status` on load: if the server reports live mode it uses the
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/usmanbabarDev/prelude)
 
-Click the button, sign in to Render, and paste your `ANTHROPIC_API_KEY` and `EXA_API_KEY` when asked. Render builds `render.yaml` (free web service) and gives you a `*.onrender.com` URL. Each visitor is limited to 10 profiles, 30 searches and 40 questions per hour. On the free plan the service sleeps after 15 idle minutes (first request then takes ~1 min), and removal requests in `optouts.json` reset on redeploy.
+Click the button, sign in to Render, and paste your `ANTHROPIC_API_KEY` and `EXA_API_KEY` when asked. `SERPER_API_KEY` (serper.dev, 2,500 free searches) is optional and adds Google results and Google Images; leave it blank to skip. Render builds `render.yaml` (free web service) and gives you a `*.onrender.com` URL. Each visitor is limited to 10 profiles, 30 searches and 40 questions per hour. On the free plan the service sleeps after 15 idle minutes (first request then takes ~1 min), and removal requests in `optouts.json` reset on redeploy.
 
 ## Run locally
 

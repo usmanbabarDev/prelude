@@ -29,16 +29,66 @@
     // Prefer people whose name contains the searched surname; fall back to all if none do.
     const surname = name.trim().split(/\s+/).pop().toLowerCase();
     const named = people.filter((p) => p.title.toLowerCase().includes(surname));
-    return (named.length ? named : people)
-      .slice(0, 6)
+    const wikiCards = (named.length ? named : people).slice(0, 6).map((p) => ({
+      platform: "wikipedia",
+      id: p.pageprops.wikibase_item,
+      name: p.title.replace(/\s*\(.*\)$/, ""),
+      wiki: p.title,
+      headline: stripBirth(cap(p.description || "")),
+      snippet: stripBirth(p.extract || ""),
+      url: `${WP}/wiki/${encodeURIComponent(p.title.replace(/ /g, "_"))}`,
+      image: p.thumbnail?.source || null,
+    }));
+    // Each person's own accounts (as listed on Wikidata) become profile cards too.
+    const accounts = await socialAccounts(wikiCards.map((c) => c.id));
+    const out = [];
+    for (const c of wikiCards) {
+      out.push(c);
+      for (const [platform, url, handle] of accounts[c.id] || []) {
+        out.push({ ...c, platform, url, headline: `${handle} · ${c.headline}`, snippet: `Official ${platform === "website" ? "website" : "account"} listed on ${c.name}'s Wikidata entry.` });
+      }
+    }
+    return out;
+  }
+
+  async function socialAccounts(qids) {
+    if (!qids.length) return {};
+    const props = SOCIAL.map(([p]) => p);
+    const q = `SELECT ?item ?prop ?value WHERE { VALUES ?item { ${qids.map((id) => "wd:" + id).join(" ")} } VALUES ?prop { ${props.map((p) => "wdt:" + p).join(" ")} } ?item ?prop ?value . }`;
+    try {
+      const data = await getJson(`https://query.wikidata.org/sparql?${qs({ format: "json", query: q })}`);
+      const out = {};
+      for (const b of data.results.bindings) {
+        const id = b.item.value.split("/").pop();
+        const def = SOCIAL.find(([p]) => b.prop.value.endsWith("/" + p));
+        if (!def) continue;
+        const list = (out[id] = out[id] || []);
+        if (list.some(([pl]) => pl === def[1])) continue; // one per platform
+        list.push([def[1], def[2](b.value.value), def[3](b.value.value)]);
+      }
+      return out;
+    } catch { return {}; }
+  }
+
+  // Photos for a name from Wikimedia Commons (freely licensed images), each linked to its file page.
+  async function images(name) {
+    const data = await getJson(`https://commons.wikimedia.org/w/api.php?${qs({
+      action: "query", format: "json", origin: "*",
+      generator: "search", gsrnamespace: 6, gsrsearch: `filetype:bitmap "${name}"`, gsrlimit: 50,
+      prop: "imageinfo", iiprop: "url", iiurlwidth: 360,
+    })}`).catch(() => ({}));
+    // Commons also matches descriptions, so keep only files whose name contains the surname.
+    const fold = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const surname = fold(name.trim().split(/\s+/).pop());
+    return Object.values(data.query?.pages || {})
+      .sort((a, b) => a.index - b.index)
+      .filter((p) => p.imageinfo?.[0]?.thumburl && fold(p.title).includes(surname))
       .map((p) => ({
-        id: p.pageprops.wikibase_item,
-        name: p.title.replace(/\s*\(.*\)$/, ""),
-        wiki: p.title,
-        headline: stripBirth(cap(p.description || "")),
-        snippet: stripBirth(p.extract || ""),
-        url: `${WP}/wiki/${encodeURIComponent(p.title.replace(/ /g, "_"))}`,
-        image: p.thumbnail?.source || null,
+        thumb: p.imageinfo[0].thumburl,
+        full: p.imageinfo[0].url,
+        link: p.imageinfo[0].descriptionurl,
+        title: p.title.replace(/^File:/, "").replace(/\.\w+$/, "").replace(/_/g, " "),
+        site: "commons.wikimedia.org",
       }));
   }
 
@@ -191,5 +241,5 @@
   function stripBirth(s) { return s.replace(/\s*\((?:[^()]*\d{4}[^()]*)\)/, "").replace(/\s{2,}/g, " ").trim(); }
   function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
-  window.FreeSearch = { candidates, profile, answer };
+  window.FreeSearch = { candidates, images, profile, answer };
 })();

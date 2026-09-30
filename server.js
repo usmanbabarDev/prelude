@@ -44,23 +44,68 @@ async function exaSearch(body) {
 
 function hostOf(u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } }
 
-async function findCandidates(name, hint) {
-  const results = await exaSearch({
-    query: [name, hint].filter(Boolean).join(" "),
-    type: "auto",
-    category: "people",
-    numResults: 8,
-    contents: { text: { maxCharacters: 1200 } },
+// Optional Google results via Serper (SERPER_API_KEY): more profile hits + an images tab.
+async function serper(kind, body) {
+  if (!process.env.SERPER_API_KEY) return null;
+  const res = await fetch(`https://google.serper.dev/${kind}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "X-API-KEY": process.env.SERPER_API_KEY },
+    body: JSON.stringify(body),
   });
-  return results
-    .filter((r) => !isOptedOut(name, r.url))
-    .map((r, i) => ({
-      id: r.id || `c${i}`,
-      name: (r.title || name).split(/[|\-–]/)[0].trim(),
-      headline: (r.title || "").split(/[|\-–]/).slice(1).join(" · ").trim() || hostOf(r.url),
-      snippet: (r.text || "").slice(0, 220),
-      url: r.url,
-    }));
+  if (!res.ok) throw new Error(`Serper ${kind} failed (${res.status})`);
+  return res.json();
+}
+
+const PLATFORM_HOSTS = [
+  ["linkedin", /linkedin\.com$/], ["x", /(^|\.)(x|twitter)\.com$/], ["instagram", /instagram\.com$/], ["facebook", /facebook\.com$/],
+  ["github", /github\.com$/], ["tiktok", /tiktok\.com$/], ["youtube", /youtube\.com$/], ["medium", /medium\.com$/],
+  ["substack", /substack\.com$/], ["threads", /threads\.net$/], ["bluesky", /bsky\.app$/], ["wikipedia", /wikipedia\.org$/],
+];
+function platformOf(url) { const h = hostOf(url); return (PLATFORM_HOSTS.find(([, re]) => re.test(h)) || ["website"])[0]; }
+function splitTitle(title, fallback) {
+  const parts = String(title || "").split(/\s+[|\-–·]\s+/);
+  return { name: (parts[0] || fallback).replace(/\s*\(@?[\w.]+\)\s*$/, "").trim(), headline: parts.slice(1).filter((p) => !/^(LinkedIn|Instagram|X|Facebook|GitHub|TikTok)/i.test(p)).join(" · ").trim() };
+}
+// Normalise profile URLs so the same account from two sources is shown once.
+function profileKey(url) { try { const u = new URL(url); return (u.hostname.replace(/^(www|[a-z]{2})\./, "") + u.pathname.replace(/\/$/, "")).toLowerCase(); } catch { return url; } }
+
+// Every public profile we can find for a name, with photos where the source has one.
+async function findCandidates(name, hint) {
+  const q = [name, hint].filter(Boolean).join(" ");
+  const opts = { type: "auto", contents: { text: { maxCharacters: 600 } } };
+  const sites = "(site:linkedin.com/in OR site:instagram.com OR site:x.com OR site:facebook.com OR site:github.com OR site:tiktok.com)";
+  const [people, social, gWeb, gImages] = await Promise.all([
+    exaSearch({ ...opts, query: q, category: "people", numResults: 20 }).catch(() => []),
+    exaSearch({ ...opts, query: q, numResults: 15, includeDomains: SOCIAL_DOMAINS.concat(["facebook.com", "tiktok.com"]) }).catch(() => []),
+    serper("search", { q: `"${name}" ${hint || ""} ${sites}`, num: 20 }).catch(() => null),
+    serper("images", { q, num: 40 }).catch(() => null),
+  ]);
+
+  const surname = name.trim().split(/\s+/).pop().toLowerCase();
+  const seen = new Set();
+  const candidates = [];
+  const add = (c) => {
+    const key = profileKey(c.url);
+    if (!c.url || seen.has(key) || isOptedOut(c.name, c.url)) return;
+    if (!`${c.name} ${c.headline} ${c.url}`.toLowerCase().includes(surname)) return; // must mention the name
+    seen.add(key); candidates.push(c);
+  };
+  [...people, ...social].forEach((r, i) => {
+    const t = splitTitle(r.title, name);
+    add({ id: r.id || `e${i}`, name: t.name, headline: t.headline || hostOf(r.url), snippet: (r.text || "").slice(0, 220), url: r.url, image: r.image || null, platform: platformOf(r.url) });
+  });
+  (gWeb?.organic || []).forEach((r, i) => {
+    const t = splitTitle(r.title, name);
+    add({ id: `g${i}`, name: t.name, headline: t.headline || hostOf(r.link), snippet: r.snippet || "", url: r.link, image: r.imageUrl || null, platform: platformOf(r.link) });
+  });
+
+  const images = [];
+  const seenImg = new Set();
+  const addImg = (img) => { if (img.thumb && !seenImg.has(img.thumb)) { seenImg.add(img.thumb); images.push(img); } };
+  candidates.forEach((c) => c.image && addImg({ thumb: c.image, full: c.image, link: c.url, title: `${c.name} — ${c.headline}`, site: hostOf(c.url) }));
+  (gImages?.images || []).forEach((im) => addImg({ thumb: im.thumbnailUrl || im.imageUrl, full: im.imageUrl, link: im.link, title: im.title, site: im.source || hostOf(im.link) }));
+
+  return { candidates: candidates.slice(0, 40), images: images.slice(0, 60) };
 }
 
 const SOCIAL_DOMAINS = ["linkedin.com", "github.com", "x.com", "twitter.com", "instagram.com", "youtube.com", "medium.com", "substack.com", "threads.net", "bsky.app", "dribbble.com", "behance.net", "scholar.google.com"];
@@ -76,8 +121,7 @@ async function gatherSources(candidate) {
     exaSearch({ ...opts, query: q, numResults: 6, category: "news" }).catch(() => []),
   ]);
   const seen = new Set();
-  const list = [{ url: candidate.url, title: `${candidate.name} — ${candidate.headline}`, text: candidate.snippet }, ...social, ...web, ...news];
-  return list
+  const list = [{ url: candidate.url, title: `${candidate.name} — ${candidate.headline}`, text: candidate.snippet }, ...social, ...web, ...news];  return list
     .filter((s) => s.url && !seen.has(s.url) && seen.add(s.url))
     .slice(0, 18)
     .map((s, i) => ({ id: i + 1, url: s.url, title: s.title || hostOf(s.url), site: hostOf(s.url), date: s.publishedDate ? s.publishedDate.slice(0, 10) : null, text: (s.text || "").slice(0, 2000) }));
@@ -137,7 +181,7 @@ async function buildProfile(candidate) {
     }],
   });
   const profile = JSON.parse(text);
-  return { ...profile, sources: sources.map(({ text: _t, ...s }) => s), sourceTexts: sources, generatedAt: new Date().toISOString(), demo: false };
+  return { ...profile, image: candidate.image || null, sources: sources.map(({ text: _t, ...s }) => s), sourceTexts: sources, generatedAt: new Date().toISOString() };
 }
 
 async function answer(profile, question, history) {
@@ -189,13 +233,12 @@ function looksLikeContactLookup(q) {
 }
 
 const routes = {
-  "GET /api/status": async () => ({ live: LIVE, model: LIVE ? MODEL : null }),
+  "GET /api/status": async () => ({ live: LIVE, model: LIVE ? MODEL : null, googleImages: Boolean(process.env.SERPER_API_KEY) }),
   "POST /api/candidates": async ({ name, hint }) => {
     if (!name || name.trim().length < 3) return [400, { error: "Enter a full name." }];
     if (looksLikeContactLookup(`${name} ${hint || ""}`)) return [400, { error: "Search by name. Reverse lookups on phone numbers, emails or addresses aren't supported." }];
     if (!LIVE) return [503, { error: "Live search needs API keys." }];
-    const list = await findCandidates(name.trim(), (hint || "").trim());
-    return { candidates: list.filter((c) => !isOptedOut(c.name, c.url)) };
+    return findCandidates(name.trim(), (hint || "").trim());
   },
   "POST /api/profile": async ({ candidate }) => {
     if (!candidate) return [400, { error: "Pick a person." }];
