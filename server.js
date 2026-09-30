@@ -110,9 +110,10 @@ const PLATFORM_HOSTS = [
 ];
 function platformOf(url) { const h = hostOf(url); return (PLATFORM_HOSTS.find(([, re]) => re.test(h)) || ["website"])[0]; }
 // "Jane Doe - Engineer - Acme | LinkedIn" -> { name: "Jane Doe", headline: "Engineer · Acme" }
-const SITE_WORDS = /^(LinkedIn|Instagram|X|Twitter|Facebook|GitHub|TikTok|YouTube|ResearchGate|Academia\.edu|Medium|Pinterest)\b|photos and videos|on X$/i;
+const SITE_WORDS = /^(LinkedIn|Instagram|X|Twitter|Facebook|GitHub|TikTok|YouTube|ResearchGate|Academia\.edu|Medium|Pinterest|Professional Profile)\b|photos and videos|on X$/i;
 function splitTitle(title, fallback) {
-  const parts = String(title || "").split(/\s+[|\-–·•]\s+/).map((p) => p.trim()).filter(Boolean);
+  const clean = String(title || "").replace(/[‎‏‪-‮⁦-⁩]/g, ""); // invisible direction marks
+  const parts = clean.split(/\s+[|\-–·•]\s+/).map((p) => p.trim()).filter(Boolean);
   let name = parts[0] || fallback;
   const handle = name.match(/\((@[\w.]+)\)/);
   name = name.replace(/\s*\(@?[\w.]+\)\s*/, " ").replace(/\s+on (X|Twitter)$/i, "").trim();
