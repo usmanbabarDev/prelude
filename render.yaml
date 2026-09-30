@@ -1,5 +1,5 @@
 # Render Blueprint: one web service running server.js.
-# Render asks for the two API keys when you create the Blueprint (sync: false).
+# Render asks for the keys when you create the Blueprint (sync: false). Leave any optional one blank.
 services:
   - type: web
     name: prelude
@@ -11,10 +11,12 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
-      - key: ANTHROPIC_API_KEY
+      # Required for real search: Google results + Google Images (serper.dev, 2,500 free searches)
+      - key: SERPER_API_KEY
         sync: false
+      # Optional: Exa people index (more LinkedIn profiles with photos)
       - key: EXA_API_KEY
         sync: false
-      # Optional: Google results + Google Images via serper.dev (leave blank to skip)
-      - key: SERPER_API_KEY
+      # Optional: Claude for "Full profile" pages and follow-up chat
+      - key: ANTHROPIC_API_KEY
         sync: false

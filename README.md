@@ -16,16 +16,16 @@ Photos come only from searching the name. There is no face matching or reverse i
 
 | | Free mode | Live mode |
 |---|---|---|
-| Profiles | Wikipedia + each person's official accounts listed on Wikidata | Exa people index (LinkedIn etc.) + Exa social search, plus Google results via Serper if `SERPER_API_KEY` is set |
-| Images | Wikipedia photo + Wikimedia Commons photos whose file name matches | Profile photos from results, plus Google Images via Serper |
+| Profiles | Wikipedia + each person's official accounts listed on Wikidata | Google results via Serper (LinkedIn, ResearchGate, Academia, Instagram, X…), plus Exa's people index if `EXA_API_KEY` is set |
+| Images | Wikipedia photo + Wikimedia Commons photos whose file name matches | Google Images via Serper; profile cards get the photo Google found on that page |
 
 ## Two modes
 
 | | Free mode | Live mode |
 |---|---|---|
 | Who it finds | Notable people with a Wikipedia article | Anyone with a public web presence |
-| Sources | Wikipedia, Wikidata (roles, education, awards, verified social accounts), Hacker News | Exa people index + web + news, summarised by Claude |
-| Needs | Nothing — runs in the browser, works on GitHub Pages | `ANTHROPIC_API_KEY` + `EXA_API_KEY` on a server (Render) |
+| Sources | Wikipedia, Wikidata (roles, education, awards, verified social accounts), Hacker News | Google (Serper) and/or Exa; Full profile pages summarised by Claude |
+| Needs | Nothing — runs in the browser, works on GitHub Pages | `SERPER_API_KEY` on a server (Render). `ANTHROPIC_API_KEY` adds Full profile + chat; `EXA_API_KEY` adds more profiles |
 | Follow-up chat | Rule-based answers from the profile | Claude, with citations |
 
 The app checks `api/status` on load: if the server reports live mode it uses the server, otherwise it runs free mode in the browser. Free mode only reads professional properties from Wikidata (never spouse, children, relatives, date of birth or residence) and drops summary sentences about family or wealth.
@@ -34,7 +34,7 @@ The app checks `api/status` on load: if the server reports live mode it uses the
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/usmanbabarDev/prelude)
 
-Click the button, sign in to Render, and paste your `ANTHROPIC_API_KEY` and `EXA_API_KEY` when asked. `SERPER_API_KEY` (serper.dev, 2,500 free searches) is optional and adds Google results and Google Images; leave it blank to skip. Render builds `render.yaml` (free web service) and gives you a `*.onrender.com` URL. Each visitor is limited to 10 profiles, 30 searches and 40 questions per hour. On the free plan the service sleeps after 15 idle minutes (first request then takes ~1 min), and removal requests in `optouts.json` reset on redeploy.
+Click the button, sign in to Render, and paste your `SERPER_API_KEY` (serper.dev, 2,500 free searches, no card) when asked. That alone turns on Google-style results with photos for anyone. `ANTHROPIC_API_KEY` (Full profile pages and follow-up chat) and `EXA_API_KEY` (more LinkedIn profiles) are optional; leave them blank to skip. Render builds `render.yaml` (free web service) and gives you a `*.onrender.com` URL. Each visitor is limited to 10 profiles, 30 searches and 40 questions per hour. On the free plan the service sleeps after 15 idle minutes (first request then takes ~1 min), and removal requests in `optouts.json` reset on redeploy.
 
 ## Run locally
 
@@ -43,10 +43,11 @@ npm install
 npm start            # http://localhost:5173, free mode unless API keys are set
 ```
 
-To search real people, set both keys and restart:
+To search anyone, set a Serper key and restart:
 
 ```bash
-ANTHROPIC_API_KEY=... EXA_API_KEY=... npm start
+SERPER_API_KEY=... npm start                      # Google-style results for anyone
+SERPER_API_KEY=... ANTHROPIC_API_KEY=... npm start # + Full profile pages and chat
 ```
 
 - **Exa** finds candidate profiles (`category: "people"`), then runs three searches in parallel for the chosen person: social sites, the general web, and news.

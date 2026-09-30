@@ -26,10 +26,11 @@
     if (!pages.length) return [];
     const humans = await adultHumans(pages.map((p) => p.pageprops.wikibase_item));
     const people = pages.filter((p) => (humans ? humans.has(p.pageprops.wikibase_item) : true));
-    // Prefer people whose name contains the searched surname; fall back to all if none do.
-    const surname = name.trim().split(/\s+/).pop().toLowerCase();
-    const named = people.filter((p) => p.title.toLowerCase().includes(surname));
-    const wikiCards = (named.length ? named : people).slice(0, 6).map((p) => ({
+    // Only people whose article title contains every part of the searched name
+    // ("Usman Babar" must not return "Babar Azam").
+    const tokens = fold(name).split(/\s+/).filter((t) => t.length > 1);
+    const named = people.filter((p) => tokens.every((t) => fold(p.title).includes(t)));
+    const wikiCards = named.slice(0, 6).map((p) => ({
       platform: "wikipedia",
       id: p.pageprops.wikibase_item,
       name: p.title.replace(/\s*\(.*\)$/, ""),
@@ -77,12 +78,11 @@
       generator: "search", gsrnamespace: 6, gsrsearch: `filetype:bitmap "${name}"`, gsrlimit: 50,
       prop: "imageinfo", iiprop: "url", iiurlwidth: 360,
     })}`).catch(() => ({}));
-    // Commons also matches descriptions, so keep only files whose name contains the surname.
-    const fold = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-    const surname = fold(name.trim().split(/\s+/).pop());
+    // Commons also matches descriptions, so keep only files whose name contains the full name.
+    const tokens = fold(name).split(/\s+/).filter((t) => t.length > 1);
     return Object.values(data.query?.pages || {})
       .sort((a, b) => a.index - b.index)
-      .filter((p) => p.imageinfo?.[0]?.thumburl && fold(p.title).includes(surname))
+      .filter((p) => p.imageinfo?.[0]?.thumburl && tokens.every((t) => fold(p.title.replace(/[_-]/g, " ")).includes(t)))
       .map((p) => ({
         thumb: p.imageinfo[0].thumburl,
         full: p.imageinfo[0].url,
@@ -239,6 +239,7 @@
   }
 
   function stripBirth(s) { return s.replace(/\s*\((?:[^()]*\d{4}[^()]*)\)/, "").replace(/\s{2,}/g, " ").trim(); }
+  function fold(s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
   function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
 
   window.FreeSearch = { candidates, images, profile, answer };

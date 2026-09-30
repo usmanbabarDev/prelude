@@ -46,7 +46,10 @@
   const PLATFORM = {
     linkedin: ["LinkedIn", "#0a66c2", "in"], github: ["GitHub", "#24292f", "gh"], x: ["X", "#000000", "𝕏"], instagram: ["Instagram", "#d62976", "ig"],
     youtube: ["YouTube", "#ff0000", "▶"], medium: ["Medium", "#111111", "M"], substack: ["Substack", "#ff6719", "S"], threads: ["Threads", "#000000", "@"],
-    bluesky: ["Bluesky", "#1185fe", "b"], website: ["Website", "#4b3df5", "◎"], tiktok: ["TikTok", "#010101", "♪"], facebook: ["Facebook", "#1877f2", "f"], wikipedia: ["Wikipedia", "#333333", "W"], other: ["Profile", "#6b6b76", "↗"],
+    bluesky: ["Bluesky", "#1185fe", "b"], website: ["Website", "#4b3df5", "◎"], tiktok: ["TikTok", "#010101", "♪"], facebook: ["Facebook", "#1877f2", "f"], wikipedia: ["Wikipedia", "#333333", "W"],
+    researchgate: ["ResearchGate", "#00ccbb", "R"], academia: ["Academia.edu", "#41454a", "A"], scholar: ["Google Scholar", "#4285f4", "S"],
+    orcid: ["ORCID", "#a6ce39", "iD"], behance: ["Behance", "#1769ff", "Bē"], dribbble: ["Dribbble", "#ea4c89", "●"],
+    pinterest: ["Pinterest", "#e60023", "P"], crunchbase: ["Crunchbase", "#0288d1", "cb"], other: ["Profile", "#6b6b76", "↗"],
   };
   const MENTION = { article: "Article", interview: "Interview", talk: "Talk", podcast: "Podcast", news: "News", publication: "Publication", project: "Project", event: "Event", award: "Award", other: "Mention" };
 
@@ -73,7 +76,7 @@
     .then((r) => ((r.headers.get("content-type") || "").includes("application/json") ? r.json() : { live: false }))
     .catch(() => ({ live: false }))
     .then((s) => {
-      state.live = !!s.live;
+      state.live = !!s.live; state.ai = !!s.ai;
       const pill = $("#modePill"); pill.textContent = state.live ? "Live" : "Free"; pill.classList.toggle("live", state.live);
     });
   async function api(path, body) {
@@ -100,7 +103,7 @@
   function route() {
     const [name] = location.hash.replace(/^#\/?/, "").split("/");
     const r = routes[name] ? name : "";
-    if ((r === "profile" && !state.current) || (r === "results" && !state.candidates.length)) return go("#/");
+    if ((r === "profile" && !state.current) || (r === "results" && !state.search.name)) return go("#/");
     const tab = { "": "search", results: "search", profile: "search", history: "history", account: "account" }[r];
     document.querySelectorAll(".tabbar a").forEach((a) => a.classList.toggle("active", a.dataset.tab === tab));
     $("#backBtn").hidden = !(r === "results" || r === "profile");
@@ -193,6 +196,9 @@
     ["Google Images", "website", () => `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(`"${state.search.name}"`)}`],
   ];
 
+  // Full profiles: free mode (Wikidata) or live mode with the AI key.
+  const canBuild = () => !state.live || state.ai;
+
   function profileCard(x, i) {
     const [label, color, glyph] = platformInfo(x.platform);
     return `
@@ -208,7 +214,7 @@
         ${x.snippet ? `<p class="snip">${esc(x.snippet)}</p>` : ""}
         <div class="pcard-actions">
           <a class="btn ghost sm" href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener noreferrer">Open ${esc(label)} ↗</a>
-          <button class="btn primary sm" type="button">Full profile</button>
+          ${canBuild() ? `<button class="btn primary sm" type="button">Full profile</button>` : ""}
         </div>
       </article>`;
   }
@@ -223,9 +229,11 @@
       : "";
     const profilesHtml = filters + (list.length
       ? list.map((x) => profileCard(x, all.indexOf(x))).join("")
-      : `<div class="empty">${ICON.search}<p>No profiles found${state.live ? ". Try adding a city or company." : " in free mode. Try the buttons below."}</p></div>`);
+      : state.live
+        ? `<div class="empty">${ICON.search}<p>No profiles found. Try adding a city, company or school.</p></div>`
+        : `<div class="empty">${ICON.search}<p><b>No well-known person named “${esc(state.search.name)}”.</b><br>This free version only covers people with a Wikipedia article. Use the buttons below to search LinkedIn, Instagram and Google Images for anyone.</p></div>`);
     const imagesHtml = imgs.length
-      ? `<div class="img-grid">${imgs.map((im, i) => `<button class="img-tile" data-img="${i}" aria-label="${esc(im.title)}"><img src="${esc(im.thumb)}" alt="" loading="${i < 12 ? "eager" : "lazy"}" referrerpolicy="no-referrer"></button>`).join("")}</div><p class="muted small" style="text-align:center">Each photo links to the page it came from.</p>`
+      ? `<div class="img-grid">${imgs.map((im, i) => { const [label, color, glyph] = platformInfo(im.platform || "website"); return `<button class="img-tile" data-img="${i}"><span class="img-box"><img src="${esc(im.thumb)}" alt="" loading="${i < 12 ? "eager" : "lazy"}" referrerpolicy="no-referrer"></span><span class="img-cap">${esc(im.title || "")}</span><span class="img-src"><span class="dot" style="background:${color}">${esc(glyph)}</span>${esc(im.platform && im.platform !== "website" ? label : im.site || "")}</span></button>`; }).join("")}</div><p class="muted small" style="text-align:center">Each photo links to the page it came from.</p>`
       : `<div class="empty">${ICON.search}<p>No photos found. Try Google Images below.</p></div>`;
 
     view.innerHTML = `
@@ -246,7 +254,11 @@
 
     view.querySelectorAll("[data-rt]").forEach((b) => (b.onclick = () => { state.resultsTab = b.dataset.rt; renderResults(); }));
     view.querySelectorAll("[data-f]").forEach((b) => (b.onclick = () => { state.filter = b.dataset.f; renderResults(); }));
-    view.querySelectorAll(".pcard").forEach((card) => card.addEventListener("click", (e) => { if (!e.target.closest("a")) buildProfile(all[card.dataset.i]); }));
+    view.querySelectorAll(".pcard").forEach((card) => card.addEventListener("click", (e) => {
+      if (e.target.closest("a")) return;
+      const c = all[card.dataset.i];
+      if (canBuild()) buildProfile(c); else window.open(safeUrl(c.url), "_blank", "noopener");
+    }));
     view.querySelectorAll("[data-img]").forEach((t) => (t.onclick = () => showImage(imgs[t.dataset.img])));
     view.querySelectorAll(".img-tile img").forEach((im) => (im.onerror = () => im.closest(".img-tile").remove()));
     view.querySelectorAll(".pcard img.avatar").forEach((im) => (im.onerror = () => { const c = all[im.closest(".pcard").dataset.i]; im.outerHTML = avatar(c.name, true, c.url); }));
