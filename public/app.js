@@ -72,17 +72,23 @@
     "api/ask": async ({ profile, question }) => { await sleep(400); return { answer: FreeSearch.answer(profile, question) }; },
     "api/optout": async ({ url }) => { if (url) store.set("optouts", [...store.get("optouts", []), url]); return { ok: true }; },
   };
-  const ready = fetch("api/status")
+  // Static hosts (GitHub Pages) can't run the server, so they use the live server on Render.
+  const LIVE_SERVER = "https://prelude-yeoz.onrender.com/";
+  const API_BASE = location.hostname.endsWith("github.io") ? LIVE_SERVER : "";
+  const pill = $("#modePill");
+  if (API_BASE) pill.textContent = "Connecting…";
+  // A sleeping free Render server can take ~1 minute to wake; give it 75s before falling back to free mode.
+  const ready = fetch(API_BASE + "api/status", { signal: AbortSignal.timeout ? AbortSignal.timeout(75000) : undefined })
     .then((r) => ((r.headers.get("content-type") || "").includes("application/json") ? r.json() : { live: false }))
     .catch(() => ({ live: false }))
     .then((s) => {
       state.live = !!s.live; state.ai = !!s.ai;
-      const pill = $("#modePill"); pill.textContent = state.live ? "Live" : "Free"; pill.classList.toggle("live", state.live);
+      pill.textContent = state.live ? "Live" : "Free"; pill.classList.toggle("live", state.live);
     });
   async function api(path, body) {
     await ready;
     if (!state.live) return freeApi[path](body || {});
-    const res = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+    const res = await fetch(API_BASE + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Something went wrong.");
     return data;

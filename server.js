@@ -392,8 +392,19 @@ const routes = {
   },
 };
 
+// Let the static copy of the site (GitHub Pages) call this server's API.
+const CORS_ORIGINS = (process.env.CORS_ORIGINS || "https://usmanbabardev.github.io").split(",").map((s) => s.trim()).filter(Boolean);
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
+  if (url.pathname.startsWith("/api/") && CORS_ORIGINS.includes(req.headers.origin)) {
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin);
+    res.setHeader("Vary", "Origin");
+    if (req.method === "OPTIONS") {
+      res.writeHead(204, { "Access-Control-Allow-Methods": "GET, POST", "Access-Control-Allow-Headers": "content-type", "Access-Control-Max-Age": "86400" });
+      return res.end();
+    }
+  }
   const handler = routes[`${req.method} ${url.pathname}`];
   if (handler) {
     if (rateLimited(req, `${req.method} ${url.pathname}`)) return send(res, 429, { error: "Too many lookups from this device. Try again in an hour." });
