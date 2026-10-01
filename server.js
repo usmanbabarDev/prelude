@@ -148,6 +148,44 @@ function splitTitle(title, fallback) {
   if (handle) rest.unshift(handle[1]);
   return { name, headline: rest.join(" · ") };
 }
+// Social results are often single posts. Turn them into the account's profile URL where the
+// address contains the username; drop pages that aren't tied to one account (search, hashtags...).
+const NOT_ACCOUNTS = /^(public|directory|p|reel|reels|explore|stories|tv|hashtag|search|i|home|share|watch|results|shorts|playlist|feed|groups|events|pages|marketplace|login|signup|intent|topics|pin|ideas|discover|tag|music|trending)$/i;
+function toProfileUrl(url) {
+  let u;
+  try { u = new URL(url); } catch { return url; }
+  const host = u.hostname.replace(/^(www|m|mobile|[a-z]{2})\./, "");
+  const parts = u.pathname.split("/").filter(Boolean);
+  const first = parts[0] || "";
+  const profile = (path) => `https://${host}/${path}`;
+  switch (platformOf(url)) {
+    case "instagram":
+    case "threads":
+      if (!first || NOT_ACCOUNTS.test(first)) return null; // a post/reel with no username in the URL
+      return profile(first);
+    case "x":
+      if (!first || NOT_ACCOUNTS.test(first)) return null;
+      return profile(first); // x.com/user/status/123 -> x.com/user
+    case "tiktok":
+      return first.startsWith("@") ? profile(first) : null; // tiktok.com/@user/video/123 -> tiktok.com/@user
+    case "facebook":
+      if (first === "people" && parts[2]) return profile(parts.slice(0, 3).join("/"));
+      if (first === "profile.php") return url; // numeric profile ids live in the query string
+      if (!first || NOT_ACCOUNTS.test(first) || /^(photo|photos|video|videos|watch|story\.php|permalink\.php)$/i.test(first)) return null;
+      return profile(first);
+    case "github":
+      return first && !NOT_ACCOUNTS.test(first) ? profile(first) : null;
+    case "youtube":
+      if (first.startsWith("@")) return profile(first);
+      if (["channel", "c", "user"].includes(first) && parts[1]) return profile(`${first}/${parts[1]}`);
+      return null; // single videos aren't a profile
+    case "pinterest":
+      return first && !NOT_ACCOUNTS.test(first) ? profile(first) : null;
+    default:
+      return url;
+  }
+}
+
 // Normalise profile URLs so the same account from two sources is shown once.
 function profileKey(url) { try { const u = new URL(url); return (u.hostname.replace(/^(www|[a-z]{2})\./, "") + u.pathname.replace(/\/$/, "")).toLowerCase(); } catch { return url; } }
 
@@ -177,15 +215,19 @@ async function findCandidates(name, hint) {
   const opts = { type: "auto", contents: { text: { maxCharacters: 600 } } };
   let lastError = null;
   const soft = (p) => p.catch((err) => { lastError = err; return null; });
-  const [people, social, gWeb, gLinkedIn, gImages] = await Promise.all([
+  const sites = (list) => `(${list.map((s) => "site:" + s).join(" OR ")})`;
+  const [people, social, gWeb, gLinkedIn, gImages, gSocialA, gSocialB] = await Promise.all([
     exaSearch({ ...opts, query: q, category: "people", numResults: 20 }).catch(() => []),
     exaSearch({ ...opts, query: q, numResults: 15, includeDomains: SOCIAL_DOMAINS.concat(["facebook.com", "tiktok.com"]) }).catch(() => []),
     soft(google("search", { q: quoted, num: 30 })),
     soft(google("search", { q: `site:linkedin.com/in ${quoted}`, num: 20 })),
     soft(google("images", { q: quoted, num: 60 })),
+    // Dedicated social media searches, split in two so each platform gets room in the results.
+    soft(google("search", { q: `${quoted} ${sites(["instagram.com", "facebook.com", "tiktok.com"])}`, num: 20 })),
+    soft(google("search", { q: `${quoted} ${sites(["x.com", "twitter.com", "youtube.com", "github.com", "threads.net", "pinterest.com"])}`, num: 20 })),
   ]);
   // Every search failed (e.g. SearXNG blocked): say so instead of showing "no results".
-  if (!gWeb && !gLinkedIn && !gImages && !people.length && !social.length && lastError) throw lastError;
+  if (!gWeb && !gLinkedIn && !gImages && !gSocialA && !gSocialB && !people.length && !social.length && lastError) throw lastError;
 
   // A result must contain every part of the searched name (so "Usman Babar" never matches "Babar Azam").
   const tokens = fold(name).split(/\s+/).filter((t) => t.length > 1);
@@ -194,16 +236,20 @@ async function findCandidates(name, hint) {
   const seen = new Set();
   const candidates = [];
   const add = (c) => {
+    c.url = toProfileUrl(c.url);
+    if (!c.url) return;
     const key = profileKey(c.url);
     if (!c.url || seen.has(key) || isOptedOut(c.name, c.url)) return;
     if (!matchesName(`${c.name} ${c.headline} ${c.url.replace(/[-_/.]/g, " ")}`)) return;
+    // Titles like "www.instagram.com" aren't names: show the searched name instead.
+    if (!matchesName(c.name)) c.name = name;
     seen.add(key); candidates.push(c);
   };
   [...people, ...social].forEach((r, i) => {
     const t = splitTitle(r.title, name);
     add({ id: r.id || `e${i}`, name: t.name, headline: t.headline || hostOf(r.url), snippet: (r.text || "").slice(0, 220), url: r.url, image: r.image || null, platform: platformOf(r.url) });
   });
-  [...(gLinkedIn?.organic || []), ...(gWeb?.organic || [])].forEach((r, i) => {
+  [...(gLinkedIn?.organic || []), ...(gSocialA?.organic || []), ...(gSocialB?.organic || []), ...(gWeb?.organic || [])].forEach((r, i) => {
     const t = splitTitle(r.title, name);
     add({ id: `g${i}`, name: t.name, headline: t.headline || hostOf(r.link), snippet: r.snippet || "", url: r.link, image: r.imageUrl || null, platform: platformOf(r.link) });
   });
@@ -220,7 +266,11 @@ async function findCandidates(name, hint) {
   gImgs.forEach((im, i) => {
     if (im.platform !== "website") add({ id: `i${i}`, ...splitTitle(im.title, name), snippet: "", url: im.link, image: im.thumb, platform: im.platform });
   });
-  candidates.forEach((c) => { if (!c.headline) c.headline = hostOf(c.url); });
+  candidates.forEach((c) => {
+    if (!c.headline) c.headline = hostOf(c.url);
+    // GitHub serves every account's public avatar at github.com/<user>.png
+    if (!c.image && c.platform === "github") c.image = `${c.url}.png?size=160`;
+  });
 
   const images = [];
   const seenImg = new Set();

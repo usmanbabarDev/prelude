@@ -8,7 +8,7 @@ Type a name, pick the right person, and get one AI-built profile from public web
 
 Searching a name opens a results page with two tabs:
 
-- **Profiles**: every public profile found for the name, each with its photo, platform badge (LinkedIn, Instagram, X, Facebook, GitHub, TikTok, YouTube, Wikipedia, website), headline and snippet. Filter by platform, open the original profile, or tap **Full profile** for the AI-built profile.
+- **Profiles**: every public profile found for the name, each with its photo, platform badge (LinkedIn, Instagram, Facebook, X, TikTok, YouTube, Threads, Pinterest, GitHub, ResearchGate, Academia, Wikipedia, websites), headline and snippet. Dedicated social media searches look for Instagram/Facebook/TikTok and X/YouTube/GitHub/Threads/Pinterest accounts, and links to single posts (a tweet, reel or TikTok video) are turned into the account's profile link. Filter by platform or tap **Social** to see just social accounts.
 - **Images**: a photo grid for the name. Every photo links back to the page it came from.
 - **Search this name on**: one-tap Google site searches for LinkedIn, Instagram, X, Facebook, TikTok and Google Images, so you can go further for anyone.
 

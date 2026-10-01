@@ -191,6 +191,7 @@
 
   // ---------- Results: every public profile + photos for the name ----------
   const platformInfo = (p) => PLATFORM[p] || PLATFORM.website;
+  const SOCIAL_PLATFORMS = ["instagram", "facebook", "x", "tiktok", "youtube", "threads", "pinterest", "github", "bluesky", "medium", "substack"];
   const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return ""; } };
   const googleSite = (site) => `https://www.google.com/search?q=${encodeURIComponent(`site:${site} "${state.search.name}"`)}`;
   const ELSEWHERE = [
@@ -229,9 +230,13 @@
     const all = state.candidates; const imgs = state.images || [];
     const counts = {};
     all.forEach((c) => { const p = c.platform || "website"; counts[p] = (counts[p] || 0) + 1; });
-    const list = state.filter === "all" ? all : all.filter((c) => (c.platform || "website") === state.filter);
+    const isSocial = (c) => SOCIAL_PLATFORMS.includes(c.platform);
+    const socialCount = all.filter(isSocial).length;
+    const list = state.filter === "all" ? all
+      : state.filter === "social" ? all.filter(isSocial)
+      : all.filter((c) => (c.platform || "website") === state.filter);
     const filters = Object.keys(counts).length > 1
-      ? `<div class="chips" style="margin-bottom:12px"><button class="chip" data-f="all" aria-pressed="${state.filter === "all"}">All ${all.length}</button>${Object.entries(counts).sort((x, y) => y[1] - x[1]).map(([p, n]) => `<button class="chip" data-f="${esc(p)}" aria-pressed="${state.filter === p}">${esc(platformInfo(p)[0])} ${n}</button>`).join("")}</div>`
+      ? `<div class="chips" style="margin-bottom:12px"><button class="chip" data-f="all" aria-pressed="${state.filter === "all"}">All ${all.length}</button>${socialCount ? `<button class="chip" data-f="social" aria-pressed="${state.filter === "social"}">Social ${socialCount}</button>` : ""}${Object.entries(counts).sort((x, y) => y[1] - x[1]).map(([p, n]) => `<button class="chip" data-f="${esc(p)}" aria-pressed="${state.filter === p}">${esc(platformInfo(p)[0])} ${n}</button>`).join("")}</div>`
       : "";
     const profilesHtml = filters + (list.length
       ? list.map((x) => profileCard(x, all.indexOf(x))).join("")
