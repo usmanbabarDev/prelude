@@ -19,6 +19,22 @@ Photos come only from searching the name. There is no face matching or reverse i
 | Profiles | Wikipedia + each person's official accounts listed on Wikidata | Google results via Serper (LinkedIn, ResearchGate, Academia, Instagram, X…), plus Exa's people index if `EXA_API_KEY` is set |
 | Images | Wikipedia photo + Wikimedia Commons photos whose file name matches | Google Images via Serper; profile cards get the photo Google found on that page |
 
+## Explore: famous people of every country
+
+The **Explore** tab lists the 10 most famous living adults of each of the 196 countries (1,959 people), with photos. Tap anyone to search their profiles. The home page shows a "Famous around the world" row and, when the browser language includes a country (e.g. `en-PK`), a "Famous in <country>" row.
+
+The list is built from Wikidata, not hand-picked:
+
+- **Ranking:** number of Wikipedia language editions with an article about the person (Wikidata "sitelinks").
+- **Filters:** living, adult, human, citizenship of the country. Wikidata keeps historical citizenships (people born in Bangladesh before 1971 are also "Pakistani"), so anyone whose English description names a different nationality and not this country's is skipped.
+- **Photos:** each person's Wikidata image, as a direct Wikimedia Commons thumbnail.
+
+Rebuild it any time (about 15 minutes):
+
+```bash
+FRESH=1 node scripts/build-famous.js
+```
+
 ## Two modes
 
 | | Free mode | Live mode |
@@ -96,6 +112,8 @@ Free: 3 lookups a month. Monthly: $9.99 unlimited. Yearly: $49.99. No weekly pla
 server.js      Node http server: /api/candidates, /api/profile, /api/ask, /api/optout
 public/        index.html, app.css, app.js (vanilla, hash router), sw.js, manifest
   free-search.js  Free mode: Wikipedia + Wikidata + Hacker News lookups, in the browser
+scripts/       build-famous.js (Explore data from Wikidata), thumbs.js, fix-thumbs.js
+  famous.json  1,959 famous people, 10 per country (in public/)
 searxng/       Dockerfile + settings.yml for the free SearXNG search service (JSON output on)
 .github/       GitHub Pages workflow that publishes public/ (free mode)
 ```

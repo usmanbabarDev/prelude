@@ -3,7 +3,6 @@
   const $ = (s, el = document) => el.querySelector(s);
   const view = $("#view");
   const FREE_LOOKUPS = 3;
-  const FAMOUS = ["Satya Nadella", "Taylor Swift", "Lionel Messi", "Sam Altman", "Serena Williams", "Jensen Huang", "Oprah Winfrey", "Linus Torvalds"];
 
   // ---------- storage ----------
   const store = {
@@ -41,6 +40,7 @@
     clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
     work: svg('<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2"/>'),
     school: svg('<path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/>'),
+    globe: svg('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>'),
     refresh: svg('<path d="M20 11a8 8 0 10-2.3 5.7"/><path d="M20 4v7h-7"/>'),
   };
   const PLATFORM = {
@@ -104,42 +104,80 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
 
   // ---------- router ----------
-  const routes = { "": renderHome, results: renderResults, profile: renderProfile, history: renderHistory, account: renderAccount };
+  const routes = { "": renderHome, results: renderResults, profile: renderProfile, explore: renderExplore, history: renderHistory, account: renderAccount };
   function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
   function route() {
-    const [name] = location.hash.replace(/^#\/?/, "").split("/");
+    const [name, arg] = location.hash.replace(/^#\/?/, "").split("/");
     const r = routes[name] ? name : "";
     if ((r === "profile" && !state.current) || (r === "results" && !state.search.name)) return go("#/");
-    const tab = { "": "search", results: "search", profile: "search", history: "history", account: "account" }[r];
+    const tab = { "": "search", results: "search", profile: "search", explore: "explore", history: "history", account: "account" }[r];
     document.querySelectorAll(".tabbar a").forEach((a) => a.classList.toggle("active", a.dataset.tab === tab));
-    $("#backBtn").hidden = !(r === "results" || r === "profile");
+    $("#backBtn").hidden = !(r === "results" || r === "profile" || (r === "explore" && arg));
     window.scrollTo(0, 0);
-    routes[r]();
+    routes[r](arg ? decodeURIComponent(arg) : undefined);
     view.classList.remove("fade-in"); void view.offsetWidth; view.classList.add("fade-in");
   }
   window.addEventListener("hashchange", route);
   $("#backBtn").addEventListener("click", () => (history.length > 1 ? history.back() : go("#/")));
 
+  // ---------- famous people (public/famous.json, built from Wikidata) ----------
+  let famousCache = null;
+  function loadFamous() {
+    if (!famousCache) famousCache = fetch("famous.json").then((r) => r.json()).then((d) => d.countries.filter((c) => c.people.length)).catch(() => (famousCache = null, []));
+    return famousCache;
+  }
+  // The visitor's country from their browser language (e.g. "en-PK" -> "PK").
+  const localIso = (() => { for (const l of navigator.languages || [navigator.language || ""]) { const m = /-([A-Z]{2})$/i.exec(l); if (m) return m[1].toUpperCase(); } return null; })();
+  // Flag images (emoji flags don't render on Windows).
+  const flagImg = (iso, w = 40) => iso ? `<img class="flag-img" src="https://flagcdn.com/w${w}/${iso.toLowerCase()}.png" srcset="https://flagcdn.com/w${w * 2}/${iso.toLowerCase()}.png 2x" alt="" loading="lazy">` : "";
+  function personCard(p, i) {
+    const ini = `<span class="ini" style="background:linear-gradient(135deg,hsl(${hue(p.name)} 70% 58%),hsl(${(hue(p.name) + 40) % 360} 65% 42%))">${esc(initials(p.name))}</span>`;
+    return `<button class="person" data-name="${esc(p.name)}" title="${esc(p.desc)}">
+      <span class="ph">${i != null ? `<span class="rank">#${i + 1}</span>` : ""}${p.iso ? `<img class="pflag" src="https://flagcdn.com/w40/${p.iso.toLowerCase()}.png" alt="" loading="lazy">` : ""}${p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ini}</span>
+      <span class="nm">${esc(p.name)}</span><span class="ds">${esc(p.desc || "")}</span></button>`;
+  }
+  function bindPeople(root) {
+    root.querySelectorAll(".person").forEach((b) => (b.onclick = () => runSearch(b.dataset.name, "")));
+    root.querySelectorAll(".person img").forEach((im) => (im.onerror = () => {
+      const n = im.closest(".person").dataset.name;
+      im.outerHTML = `<span class="ini" style="background:linear-gradient(135deg,hsl(${hue(n)} 70% 58%),hsl(${(hue(n) + 40) % 360} 65% 42%))">${esc(initials(n))}</span>`;
+    }));
+  }
+  // One headline person per country, most famous first.
+  // (People with several citizenships can top more than one country: show each person once.)
+  const worldTop = (countries, n) => {
+    const seen = new Set();
+    return countries.map((c) => ({ ...c.people[0], iso: c.iso })).sort((a, b) => b.links - a.links).filter((p) => !seen.has(p.name) && seen.add(p.name)).slice(0, n);
+  };
+
   // ---------- Home / search ----------
   function renderHome() {
-    const recent = history_().slice(0, 4);
-    const u = usage(); const pro = store.get("pro", false);
+    const recent = history_().slice(0, 3);
     view.innerHTML = `
-      <p class="eyebrow">People search · public web</p>
-      <h1 class="display">Find anyone <em>by name.</em></h1>
-      <p class="lede">Social profiles, work history, education, location and web mentions — pulled from the public web into one sourced profile.</p>
+      <span class="eyebrow pill"><b>NEW</b> Social profiles &amp; photos</span>
+      <h1 class="display">Find anyone,<br><em>instantly.</em></h1>
+      <p class="lede">Type a name. Get every public profile, social account and photo, all in one place.</p>
 
-      <form class="card stack" id="searchForm" autocomplete="off">
-        <div class="field">${ICON.search}<input id="qName" placeholder="Full name" aria-label="Full name" required value="${esc(state.search.name)}"></div>
-        <div class="field">${ICON.pin}<input id="qHint" placeholder="City, company or school (optional)" aria-label="Extra context" value="${esc(state.search.hint)}"></div>
-        <button class="btn primary block" type="submit">Search</button>
+      <form id="searchForm" autocomplete="off">
+        <div class="searchbar">
+          ${ICON.search}
+          <input id="qName" placeholder="Search a full name" aria-label="Full name" required value="${esc(state.search.name)}">
+          <button class="search-go" type="submit">Search ${ICON.send}</button>
+        </div>
+        <div class="search-extra" id="extra" ${state.search.hint ? "" : "hidden"}>
+          <div class="field">${ICON.pin}<input id="qHint" placeholder="City, company or school" aria-label="Extra context" value="${esc(state.search.hint)}"></div>
+        </div>
+        <div class="trust">
+          ${state.search.hint ? "" : `<button type="button" class="linkish" id="addHint">+ Add city or company</button>`}
+          <span>${ICON.shield} Private</span><span>${ICON.link} Public sources only</span><span>${ICON.eye} No notifications</span>
+        </div>
         <p class="err" id="searchErr" hidden></p>
-        <p class="muted small" style="margin:0;text-align:center">${pro ? "Unlimited lookups" : `${Math.max(0, FREE_LOOKUPS - u.used)} of ${FREE_LOOKUPS} free lookups left this month`} · searches are private</p>
       </form>
 
-      <div class="section">
-        <div class="section-head"><h2>Try a famous name</h2></div>
-        <div class="chips">${FAMOUS.map((n) => `<button type="button" class="chip" data-famous="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+      <div class="section" id="localRail" hidden></div>
+      <div class="section" id="worldRail">
+        <div class="section-head"><h2>Famous around the world</h2><a href="#/explore">All countries</a></div>
+        <div class="rail">${'<div class="skeleton" style="flex:none;width:104px;height:150px"></div>'.repeat(5)}</div>
       </div>
 
       ${recent.length ? `
@@ -149,30 +187,85 @@
       </div>` : ""}
 
       <div class="section">
-        <div class="section-head"><h2>What you get</h2></div>
+        <div class="section-head"><h2>Everything in one search</h2></div>
         <div class="grid-2">
-          ${feature(ICON.link, "Social profiles", "LinkedIn, GitHub, X, Instagram and more")}
-          ${feature(ICON.work, "Work history", "Roles, companies and dates")}
-          ${feature(ICON.school, "Education", "Schools and degrees")}
-          ${feature(ICON.pin, "Location", "City or region")}
-          ${feature(ICON.clock, "Web mentions", "Articles, talks, podcasts, news")}
-          ${feature(ICON.shield, "Every fact sourced", "Tap any number to see where it came from")}
+          <div class="feature wide"><div class="ico">${ICON.link}</div><div><h3>Every profile, every platform</h3><p>LinkedIn, Instagram, Facebook, X, TikTok, YouTube, GitHub, ResearchGate and more.</p></div></div>
+          ${feature(ICON.eye, "Photos", "A Google-style image grid for the name")}
+          ${feature(ICON.work, "Work & education", "Roles, companies and schools")}
+          ${feature(ICON.globe, "195 countries", "The most famous people of every country")}
+          ${feature(ICON.shield, "Sourced", "Every result links to where it came from")}
         </div>
-      </div>
-
-      <div class="section">
-        <div class="section-head"><h2>How it works</h2></div>
-        <div class="card"><ol class="bullet-list q-list">
-          <li>Type a name. Add a city or company if it's a common name.</li>
-          <li>Pick the right person from the matches.</li>
-          <li>Get a full profile with an AI summary, then ask follow-up questions.</li>
-        </ol></div>
       </div>`;
     $("#searchForm").addEventListener("submit", (e) => { e.preventDefault(); runSearch($("#qName").value, $("#qHint").value); });
-    view.querySelectorAll("[data-famous]").forEach((c) => c.addEventListener("click", () => runSearch(c.dataset.famous, "")));
+    $("#addHint")?.addEventListener("click", (e) => { $("#extra").hidden = false; e.target.remove(); $("#qHint").focus(); });
     bindHistoryRows(recent);
+
+    loadFamous().then((countries) => {
+      if (!countries.length || !$("#worldRail")) return;
+      $("#worldRail .rail").innerHTML = worldTop(countries, 16).map((p) => personCard(p)).join("");
+      bindPeople($("#worldRail"));
+      const local = localIso && countries.find((c) => c.iso === localIso);
+      if (local) {
+        const el = $("#localRail");
+        el.hidden = false;
+        el.innerHTML = `<div class="section-head"><h2>${flagImg(local.iso)} Famous in ${esc(local.country)}</h2><a href="#/explore/${local.iso}">See top 10</a></div>
+          <div class="rail">${local.people.map((p, i) => personCard(p, i)).join("")}</div>`;
+        bindPeople(el);
+      }
+    });
   }
   const feature = (ico, t, d) => `<div class="feature"><div class="ico">${ico}</div><h3>${t}</h3><p>${d}</p></div>`;
+
+  // ---------- Explore: top 10 famous people of every country ----------
+  async function renderExplore(iso) {
+    view.innerHTML = `<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>`;
+    const countries = await loadFamous();
+    if (!countries.length) { view.innerHTML = `<div class="empty">${ICON.globe}<p>Couldn't load the famous people list. Check your connection and try again.</p></div>`; return; }
+
+    if (iso) {
+      const c = countries.find((x) => x.iso === iso.toUpperCase());
+      if (!c) return go("#/explore");
+      view.innerHTML = `
+        <div class="explore-hero">${flagImg(c.iso, 80)}<div><p class="eyebrow" style="margin:0 0 4px">Top ${c.people.length} most famous</p><h2 style="font-size:28px">${esc(c.country)}</h2></div></div>
+        <div class="people-grid">${c.people.map((p, i) => personCard(p, i)).join("")}</div>
+        <p class="muted small" style="text-align:center;margin-top:18px">Ranked by how many Wikipedia languages have an article about them. Living people only. Tap anyone to search their profiles.</p>`;
+      bindPeople(view);
+      return;
+    }
+
+    const rowHtml = (c) => `<button class="country-row" data-iso="${c.iso}">${flagImg(c.iso)}
+      <span class="grow"><b>${esc(c.country)}</b><br><span class="muted small">${esc(c.people.slice(0, 2).map((p) => p.name).join(", "))}${c.people.length > 2 ? "…" : ""}</span></span>
+      <span class="faces">${c.people.slice(0, 3).map((p) => p.img ? `<img src="${esc(p.img)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span></span>`).join("")}</span></button>`;
+    const listHtml = (list) => {
+      let out = "", letter = "";
+      for (const c of list) {
+        const L = c.country[0].toUpperCase();
+        if (L !== letter) { letter = L; out += `<div class="alpha">${L}</div>`; }
+        out += rowHtml(c);
+      }
+      return out || `<div class="empty"><p>No country matches.</p></div>`;
+    };
+    view.innerHTML = `
+      <p class="eyebrow">Explore</p>
+      <h2 style="font-size:30px;letter-spacing:-0.035em">Famous people of <span class="grad-text">every country</span></h2>
+      <p class="lede small" style="margin-top:6px">${countries.length} countries · ${countries.reduce((n, c) => n + c.people.length, 0).toLocaleString()} people. Tap a country to see its top 10.</p>
+      <div class="section" style="margin-top:20px">
+        <div class="section-head"><h2>Most famous worldwide</h2></div>
+        <div class="rail">${worldTop(countries, 20).map((p) => personCard(p)).join("")}</div>
+      </div>
+      <div class="section">
+        <div class="field" style="background:var(--surface-solid)">${ICON.search}<input id="cq" placeholder="Search a country" aria-label="Search a country"></div>
+        <div class="country-list" id="clist" style="margin-top:6px">${listHtml(countries)}</div>
+      </div>`;
+    bindPeople(view);
+    const bindRows = () => view.querySelectorAll(".country-row").forEach((b) => (b.onclick = () => go(`#/explore/${b.dataset.iso}`)));
+    bindRows();
+    $("#cq").addEventListener("input", (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      $("#clist").innerHTML = listHtml(countries.filter((c) => c.country.toLowerCase().includes(q) || c.people.some((p) => p.name.toLowerCase().includes(q))));
+      bindRows();
+    });
+  }
 
   async function runSearch(name, hint) {
     state.search = { name: name.trim(), hint: (hint || "").trim() };
@@ -334,7 +427,7 @@
 
       ${p.social.length ? `<div class="socials">${p.social.map((s) => { const [label, color, glyph] = PLATFORM[s.platform] || PLATFORM.other; return `<a class="social" href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener noreferrer"><span class="glyph" style="background:${color}">${esc(glyph)}</span><span><b>${esc(label)}</b><br><span class="muted">${esc(s.handle)}</span></span></a>`; }).join("")}</div>` : ""}
 
-      <div class="card" style="margin-top:14px"><p class="eyebrow">AI summary</p><p class="tldr">${withCites(esc(p.summary))}</p></div>
+      <div class="card" style="margin-top:14px"><p class="eyebrow">${p.mode === "free" ? "Summary from Wikipedia" : "AI summary"}</p><p class="tldr">${withCites(esc(p.summary))}</p></div>
 
       <div class="seg" role="tablist">
         ${["overview", "mentions", "sources", "ask"].map((t) => `<button role="tab" data-tab="${t}" aria-selected="${state.tab === t}">${{ overview: "Profile", mentions: "Mentions", sources: "Sources", ask: "Ask" }[t]}</button>`).join("")}
